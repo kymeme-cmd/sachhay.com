@@ -14,6 +14,7 @@ import type { Env, DBProduct } from "../types";
 import type { AppEnv, AuthUser } from "../middleware/auth";
 import { findProductsByIds, attachImages, listCategories, listProducts, findOrdersByUser, findOrderItems } from "../db/client";
 import { normalizeSearch } from "../utils/slug";
+import { keywordSearch, clearKeywordCache } from "./keyword";
 
 export const EMBED_MODEL = "@cf/baai/bge-m3"; // 1024 chiều, đa ngôn ngữ
 // Chọn qua bộ đánh giá: sea-lion (chuyên tiếng Đông Nam Á, không có bước "suy nghĩ") nhanh hơn
@@ -102,6 +103,7 @@ function bookDocument(p: { name: string; author: string | null; description: str
 /** Nạp lại toàn bộ sách đang bán + chính sách vào Vectorize (admin gọi) */
 export async function syncAll(env: Env) {
   const { ai, index } = requireBindings(env);
+  clearKeywordCache();
   const db = env.DB;
 
   const { results: books } = await db.prepare(
@@ -130,6 +132,7 @@ export async function syncAll(env: Env) {
 
 /** Cập nhật vector của 1 cuốn sách (sau khi admin tạo/sửa/xóa) */
 export async function syncProduct(env: Env, productId: string) {
+  clearKeywordCache();
   if (!env.AI || !env.VECTORIZE) return;
   const p = await env.DB.prepare(
     `SELECT p.name, p.author, p.description, p.is_active, c.name AS category
@@ -161,12 +164,6 @@ const FOLLOW_UP = /\b(cuon|quyen|sach|cai) (do|nay|kia|tren)\b|\b(no|chung)\b/;
 const ORDER_INTENT = /\bdon( hang)?\b|\bma don\b|\border\b|\bda dat\b|\bgiao (chua|toi dau|den dau)\b/;
 const POPULAR_INTENT = /\bban chay\b|\bhay nhat\b|\bnoi bat\b|\byeu thich\b|\bdanh gia cao\b|\bnhieu nguoi\b|\bpho bien\b|\bhot\b|\btop\b|\bnen doc\b|\bgoi y\b/;
 const RETURNS_INTENT = /\bdoi tra\b|\bbao hanh\b|\bhoan tien\b|\btra (hang|lai)\b|\bdoi (sach|hang)\b/;
-/** Từ phổ biến trong câu hỏi, không dùng để khớp tên sách */
-const STOPWORDS = new Set([
-  "sach", "cuon", "quyen", "truyen", "tap", "nhung", "cua", "cho", "toi", "minh", "shop", "khong", "nao", "gioi", "thieu",
-  "muon", "dang", "bao", "nhieu", "con", "hang", "mua", "ban", "tren", "duoi", "trong", "voi", "the", "hay", "nhat",
-]);
-
 const GREETING =/^(xin chao|chao( ban| shop| admin)?|hello|hi|hey|alo)[\s!.?]*$/;
 const THANKS = /^(cam on|thanks?|thank you|ok|oke|okay)[\s\w!.?]*$/;
 
@@ -228,17 +225,23 @@ async function retrieve(env: Env, question: string, history: ChatTurn[], user: A
   const searchText = prevUser && (FOLLOW_UP.test(nq) || nq.split(" ").length <= 4) ? `${prevUser}\n${question}` : question;
   const nSearch = normalizeSearch(searchText);
 
-  // 1) Tìm theo ý nghĩa (Vectorize)
-  const [qVector] = await embed(ai, [searchText]);
-  const { matches } = await index.query(qVector, { topK: TOP_K, returnMetadata: "all" });
-  const relevant = matches.filter((m) => m.score >= MIN_SCORE);
+  // 1) Theo ý nghĩa (Vectorize) và 2) theo từ khóa ("cona" → Conan) chạy song song.
+  // Từ khóa lấy từ đúng câu khách gõ; câu nối tiếp ("cuốn đó giá bao nhiêu") không tìm từ khóa.
+  const isFollowUp = !!prevUser && FOLLOW_UP.test(nq);
+  const vectorSearch = async () => {
+    const [qVector] = await embed(ai, [searchText]);
+    const { matches } = await index.query(qVector, { topK: TOP_K, returnMetadata: "all" });
+    return matches.filter((m) => m.score >= MIN_SCORE);
+  };
+  const [relevant, keyword, { results: catalog }] = await Promise.all([
+    vectorSearch(),
+    isFollowUp ? Promise.resolve({ ids: [] as string[], keywordCount: 0 }) : keywordSearch(db, question),
+    db.prepare(`SELECT id, name, author FROM products WHERE is_active = 1`).all<{ id: string; name: string; author: string | null }>(),
+  ]);
   const vectorBookIds = relevant.filter((m) => m.metadata?.type === "book").map((m) => String(m.metadata!.ref));
   const policySlugs = new Set(relevant.filter((m) => m.metadata?.type === "policy").map((m) => String(m.metadata!.ref)));
 
-  // 2) Khớp chính xác tên sách / tác giả trong câu hỏi (không dấu)
-  const { results: catalog } = await db.prepare(
-    `SELECT id, name, author FROM products WHERE is_active = 1`
-  ).all<{ id: string; name: string; author: string | null }>();
+  // Khớp nguyên cụm tên sách / tác giả trong câu hỏi (không dấu)
   const exactIds = catalog
     .filter((b) => {
       const name = normalizeSearch(b.name);
@@ -247,22 +250,20 @@ async function retrieve(env: Env, question: string, history: ChatTurn[], user: A
     })
     .map((b) => b.id);
 
-  // 2b) Từ đặc trưng (≥ 5 ký tự, tránh "tuoi" trong "8 tuổi"): từ trong câu hỏi chỉ xuất hiện ở ≤ 3 cuốn (vd "conan", "doraemon", "murakami")
-  const tokensOf = (s: string) => new Set(s.split(/[^a-z0-9]+/).filter((w) => w.length >= 5 && !STOPWORDS.has(w)));
-  const docTokens = catalog.map((b) => ({ id: b.id, tokens: tokensOf(normalizeSearch(`${b.name} ${b.author ?? ""}`)) }));
-  const df = new Map<string, number>();
-  for (const d of docTokens) for (const t of d.tokens) df.set(t, (df.get(t) ?? 0) + 1);
-  const rare = [...tokensOf(nSearch)].filter((t) => (df.get(t) ?? 0) >= 1 && (df.get(t) ?? 0) <= 3);
-  for (const d of docTokens) if (rare.some((t) => d.tokens.has(t)) && !exactIds.includes(d.id)) exactIds.push(d.id);
-
   // 3) Điều kiện lọc: khoảng giá + thể loại
   const categories = await listCategories(db);
   const category = categories.find((c) => nq.includes(normalizeSearch(c.name)));
   const price = parsePriceRange(nq);
   const hasConstraint = !!category || price.min !== undefined || price.max !== undefined;
 
-  // Khách nêu đích danh tên sách / tác giả → chỉ dùng các cuốn khớp, bỏ sách "gần nghĩa" gây nhiễu
-  let ids = exactIds.length > 0 ? [...exactIds] : [...new Set(vectorBookIds)];
+  // Gộp kết quả:
+  //  - nêu đích danh tên sách / tác giả → chỉ dùng các cuốn khớp (bỏ sách "gần nghĩa" gây nhiễu)
+  //  - câu ngắn (1–2 từ khóa) đã tìm thấy theo từ khóa → không thêm kết quả Vectorize
+  //  - còn lại: sách khớp từ khóa trước, sau đó sách từ Vectorize, bỏ trùng
+  let ids: string[];
+  if (exactIds.length > 0) ids = [...exactIds];
+  else if (keyword.ids.length > 0 && keyword.keywordCount <= 2) ids = [...keyword.ids];
+  else ids = [...new Set([...keyword.ids, ...vectorBookIds])];
   let constraintText: string | null = null;
   if (hasConstraint) {
     const parts = [
@@ -406,6 +407,7 @@ CÁCH TRẢ LỜI CHO HAY:
 - Khi gợi ý sách: chọn 2–4 cuốn hợp nhất. Mỗi cuốn một dòng gạch đầu dòng: **tên sách** — giá, kèm một câu "vì sao hợp với bạn" lấy ý từ phần mô tả (diễn đạt lại cho hấp dẫn, nhưng không thêm chi tiết mà mô tả không có). Có điểm sao hoặc lượt bán thì nhắc đến.
 - Nếu có một cuốn nổi bật hơn cả, nói rõ "Nếu chỉ chọn một cuốn, mình chọn …" và vì sao.
 - Kết thúc bằng MỘT câu hỏi ngắn, cụ thể để tư vấn tiếp (ví dụ: "Bé thích truyện tranh hay truyện chữ?", "Bạn muốn sách mỏng đọc nhanh hay tiểu thuyết dài?"). Không kết bằng câu chung chung kiểu "bạn tham khảo nhé".
+- Nếu khách chỉ gõ một từ hoặc vài chữ, hiểu là khách đang tìm sách theo từ khóa đó (có thể gõ thiếu chữ hoặc không dấu). Liệt kê các sách khớp, mỗi cuốn một dòng gồm tên, tác giả, giá, còn hàng hay không.
 - Dài khoảng 60–150 từ. Có thể dùng 1 emoji phù hợp (📚, ✨, 🎁), không lạm dụng. Không dùng bảng, không dùng tiêu đề.
 
 QUY TẮC VỀ DỮ LIỆU (tuyệt đối không vi phạm):
