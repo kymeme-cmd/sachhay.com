@@ -14,6 +14,21 @@ interface StarRatingProps {
 
 const LABELS = ["", "Rất tệ", "Tệ", "Bình thường", "Hay", "Rất hay"];
 
+/** Dòng sao gọn cho thẻ sách: "★★★★☆ 4.0 (12)" hoặc "☆☆☆☆☆ Chưa có đánh giá" */
+export function RatingLine({ product, size = 14 }: { product: { avg_rating?: number | null; review_count?: number }; size?: number }) {
+  const count = product.review_count ?? 0;
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+      <StarRating value={count > 0 ? product.avg_rating ?? 0 : 0} size={size} />
+      {count > 0 ? (
+        <span><span className="font-semibold text-gray-700">{product.avg_rating?.toFixed(1)}</span> ({count})</span>
+      ) : (
+        <span>Chưa có đánh giá</span>
+      )}
+    </div>
+  );
+}
+
 export function StarRating({ value, size = 16, onChange }: StarRatingProps) {
   const [hover, setHover] = useState(0);
 

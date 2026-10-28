@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { Alert } from "@/components/common/Alert";
 import { useCart } from "@/hooks/useCart";
 import { RecentlyViewed } from "@/components/book/RecentlyViewed";
+import { RatingLine } from "@/components/book/StarRating";
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -156,7 +157,8 @@ export default function Home() {
                 </div>
                 <div className="p-4">
                   <h3 className="font-semibold text-gray-800 mb-1 line-clamp-2">{p.name}</h3>
-                  <p className="text-primary font-bold">{formatCurrency(p.price)}</p>
+                  <RatingLine product={p} />
+                  <p className="text-primary font-bold mt-1">{formatCurrency(p.price)}</p>
                 </div>
               </Link>
             ))}
