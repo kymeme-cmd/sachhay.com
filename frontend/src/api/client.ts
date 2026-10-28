@@ -43,6 +43,15 @@ export const api: AxiosInstance = axios.create({
 
 function unwrap(response: AxiosResponse): AxiosResponse {
   const body = response.data;
+  // Không phải JSON (ví dụ host tĩnh trả index.html cho /api/* khi chưa có backend)
+  // → coi là lỗi kết nối, tránh trang bị trắng vì dữ liệu sai kiểu
+  const contentType = String(response.headers?.["content-type"] ?? "");
+  if (!contentType.includes("application/json") && !(body instanceof Blob)) {
+    console.error(`[api] ${response.config.url}: máy chủ trả về "${contentType || "không rõ"}" thay vì JSON. Kiểm tra VITE_API_URL (đang là "${API_BASE}").`);
+    return Promise.reject(Object.assign(new Error("Invalid API response"), {
+      response: { status: 502, data: { message: "Không kết nối được máy chủ. Vui lòng thử lại sau." } },
+    })) as unknown as AxiosResponse;
+  }
   if (body && typeof body === "object" && "data" in body) {
     response.meta = body.meta;
     response.data = body.data;

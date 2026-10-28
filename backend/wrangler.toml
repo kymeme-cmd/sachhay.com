@@ -13,6 +13,8 @@ JWT_SECRET = "dev-only-change-me"
 JWT_EXPIRES_IN = "15m"
 REFRESH_TOKEN_EXPIRES_IN = "7d"
 REFRESH_SECRET = "dev-refresh-secret-change-me"
+# Các tên miền frontend được phép gọi API (phân tách bằng dấu phẩy)
+CORS_ORIGINS = "https://sachhay-com.pages.dev"
 
 # ============================================================
 # D1 Database Bindings
