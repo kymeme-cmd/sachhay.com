@@ -16,6 +16,9 @@ declare global {
   }
 }
 
+// r2_key của ảnh bìa mẫu (seed); file tương ứng nằm ở frontend/public/covers/
+const BUNDLED_COVER_PREFIX = "products/covers/";
+
 // Public R2 bucket URL (tùy chọn)
 export const R2_BASE_URL = import.meta.env.VITE_R2_PUBLIC_URL;
 
@@ -26,6 +29,12 @@ export function getProductImageUrl(r2Key: string | null | undefined): string {
   }
 
   const cleanKey = r2Key.replace(/^\/|\/$/g, "");
+
+  // Ảnh bìa mẫu được đóng gói cùng giao diện (public/covers) → tải trực tiếp, không cần R2
+  if (cleanKey.startsWith(BUNDLED_COVER_PREFIX)) {
+    return `/covers/${cleanKey.slice(BUNDLED_COVER_PREFIX.length)}`;
+  }
+
   const base = R2_BASE_URL || `${API_BASE}/images`;
   return `${base.replace(/\/$/, "")}/${cleanKey}`;
 }
