@@ -12,6 +12,8 @@ export type InventoryType = "sale" | "restock" | "adjustment" | "return";
 export interface Env {
   DB: D1Database;
   R2?: R2Bucket; // tùy chọn: production có thể chưa bật R2
+  AI?: Ai; // Workers AI (chatbot) — chỉ có ở production
+  VECTORIZE?: Vectorize; // vector sách + chính sách cho RAG
   KV: KVNamespace;
   ENVIRONMENT: string;
   JWT_SECRET: string;

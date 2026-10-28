@@ -13,6 +13,7 @@ import {
 } from "../validation/schemas";
 import { requireAdmin, type AppEnv } from "../middleware/auth";
 import { uniqueSlug, buildSearchText } from "../utils/slug";
+import { scheduleProductSync } from "../ai/rag";
 
 export const productRoutes = new Hono<AppEnv>();
 
@@ -49,17 +50,23 @@ productRoutes.get("/:id", async (c) => {
 
 // ---------- Create (admin) ----------
 productRoutes.post("/", requireAdmin, validate("json", ProductCreateSchema), async (c) => {
-  return c.json({ data: await insertProduct(c.env.DB, c.req.valid("json")) }, 201);
+  const product = await insertProduct(c.env.DB, c.req.valid("json"));
+  scheduleProductSync(c, (product as { id?: string } | null)?.id);
+  return c.json({ data: product }, 201);
 });
 
 // ---------- Update (admin) ----------
 productRoutes.put("/:id", requireAdmin, validate("json", ProductUpdateSchema), async (c) => {
-  return updateProductHandler(c, c.req.param("id"), c.req.valid("json"));
+  const res = await updateProductHandler(c, c.req.param("id"), c.req.valid("json"));
+  scheduleProductSync(c, c.req.param("id"));
+  return res;
 });
 
 // ---------- Delete (admin) ----------
 productRoutes.delete("/:id", requireAdmin, async (c) => {
-  return deleteProductHandler(c, c.req.param("id"));
+  const res = await deleteProductHandler(c, c.req.param("id"));
+  scheduleProductSync(c, c.req.param("id"));
+  return res;
 });
 
 // ---------- Product images ----------

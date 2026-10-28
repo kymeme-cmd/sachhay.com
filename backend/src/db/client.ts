@@ -157,6 +157,16 @@ export async function findProductById(db: D1Database, id: string): Promise<DBPro
   return results[0] as unknown as DBProduct;
 }
 
+/** Nhiều sách theo id (giữ đúng thứ tự ids; bỏ qua id không tồn tại) */
+export async function findProductsByIds(db: D1Database, ids: string[]): Promise<DBProduct[]> {
+  if (ids.length === 0) return [];
+  const { results } = await db.prepare(
+    `SELECT ${PRODUCT_COLUMNS} FROM ${DB_TABLES.PRODUCTS} WHERE id IN (${ids.map(() => "?").join(", ")})`
+  ).bind(...ids).all();
+  const byId = new Map((results as unknown as DBProduct[]).map((p) => [p.id, p]));
+  return ids.map((id) => byId.get(id)).filter((p): p is DBProduct => !!p);
+}
+
 export async function findProductBySlug(db: D1Database, slug: string): Promise<DBProduct | null> {
   const { results } = await db.prepare(
     `SELECT ${PRODUCT_COLUMNS} FROM ${DB_TABLES.PRODUCTS} WHERE slug = ?`

@@ -91,6 +91,16 @@ directory = "../frontend/dist"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/health"]
 
+# Chatbot AI (RAG): Workers AI (embedding bge-m3 + LLM) và Vectorize lưu vector sách/chính sách.
+# Index tạo bằng: npx wrangler vectorize create sachhay-index --dimensions=1024 --metric=cosine
+# Chỉ gắn cho production; ở máy (wrangler dev) chatbot trả 503 "chưa bật".
+[env.production.ai]
+binding = "AI"
+
+[[env.production.vectorize]]
+binding = "VECTORIZE"
+index_name = "sachhay-index"
+
 # R2 (ảnh bìa): bật R2 trên dashboard, tạo bucket rồi bỏ comment khối dưới
 # [[env.production.r2_buckets]]
 # binding = "R2"

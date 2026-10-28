@@ -185,6 +185,19 @@ export const reviewAPI = {
 };
 
 // ============================================================
+// Chatbot AI (RAG)
+// ============================================================
+
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export const chatAPI = {
+  send: (message: string, history: ChatTurn[]) => api.post("/chat", { message, history }, { timeout: 60000 }),
+};
+
+// ============================================================
 // Upload API (R2)
 // ============================================================
 
@@ -257,4 +270,5 @@ export const adminAPI = {
   createCategory: (data: any) => api.post("/admin/categories", data),
   updateCategory: (id: string, data: any) => api.put(`/admin/categories/${id}`, data),
   deleteCategory: (id: string) => api.delete(`/admin/categories/${id}`),
+  syncAI: () => api.post("/admin/ai/sync", {}, { timeout: 120000 }),
 };

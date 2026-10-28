@@ -10,6 +10,7 @@ import { authRoutes } from "./routes/auth";
 import { categoryRoutes } from "./routes/categories";
 import { productRoutes } from "./routes/products";
 import { reviewRoutes } from "./routes/reviews";
+import { chatRoutes } from "./routes/chat";
 import { cartRoutes } from "./routes/cart";
 import { orderRoutes } from "./routes/orders";
 import { adminRoutes } from "./routes/admin";
@@ -48,6 +49,7 @@ api.route("/products", productRoutes);      // public read, admin write
 api.route("/products", reviewRoutes);       // /products/:id/reviews: public read, buyer write
 api.route("/cart", cartRoutes);             // auth required
 api.route("/orders", orderRoutes);          // auth required
+api.route("/chat", chatRoutes);             // chatbot RAG: public, rate-limited
 api.route("/admin", adminRoutes);           // admin role required
 api.route("/upload", uploadRoutes);         // R2 upload, admin required
 api.route("/images", imageRoutes);          // R2 public read
@@ -65,5 +67,7 @@ export default {
     ctx.waitUntil(
       deleteExpiredSessions(env.DB).then((n) => console.log(`[cron] Đã xóa ${n} session hết hạn`))
     );
+    // Bộ đếm giới hạn tin nhắn chatbot cũ hơn 2 ngày
+    ctx.waitUntil(env.DB.prepare(`DELETE FROM chat_usage WHERE window_start < unixepoch() - 172800`).run());
   },
 } satisfies ExportedHandler<Env>;

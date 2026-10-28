@@ -7,7 +7,7 @@ import { formatCurrency } from "@/utils/formatCurrency";
 import { getProductImageUrl } from "@/utils/image";
 import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS, shortOrderId } from "@/utils/order";
 import type { OrderStatusValue } from "@/types";
-import { LayoutDashboard, Users, ShoppingCart, Package, Plus, Edit, Trash2, X, BookOpen } from "lucide-react";
+import { LayoutDashboard, Users, ShoppingCart, Package, Plus, Edit, Trash2, X, BookOpen, Bot, RefreshCw } from "lucide-react";
 import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Alert } from "@/components/common/Alert";
@@ -103,6 +103,23 @@ export default function Admin() {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  // Chatbot AI: nạp lại vector sách + chính sách vào Vectorize
+  const [syncingAI, setSyncingAI] = useState(false);
+  const [aiSyncResult, setAiSyncResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const handleSyncAI = async () => {
+    setSyncingAI(true);
+    setAiSyncResult(null);
+    try {
+      const res = await adminAPI.syncAI();
+      const d = res.data as { books: number; policies: number; removed: number };
+      setAiSyncResult({ ok: true, text: `Đã nạp ${d.books} sách và ${d.policies} mục chính sách${d.removed ? `, gỡ ${d.removed} sách đã ẩn` : ""}.` });
+    } catch (err: any) {
+      setAiSyncResult({ ok: false, text: err.response?.data?.message || "Không thể đồng bộ dữ liệu AI" });
+    } finally {
+      setSyncingAI(false);
+    }
+  };
 
   // Product CRUD handlers
   const openCreateModal = () => {
@@ -317,6 +334,19 @@ export default function Admin() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+          <div className="card p-6">
+            <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2"><Bot size={20} className="text-primary" /> Trợ lý AI (chatbot)</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Chatbot chỉ trả lời dựa trên sách và chính sách đã nạp. Sách thêm/sửa/xóa trong trang này được cập nhật tự động;
+              bấm đồng bộ khi mới sửa chính sách trong database hoặc lần đầu bật chatbot.
+            </p>
+            <Button onClick={handleSyncAI} isLoading={syncingAI} className="inline-flex items-center gap-2">
+              <RefreshCw size={16} /> Đồng bộ dữ liệu AI
+            </Button>
+            {aiSyncResult && (
+              <p className={`mt-3 text-sm ${aiSyncResult.ok ? "text-green-700" : "text-red-600"}`}>{aiSyncResult.text}</p>
             )}
           </div>
         </div>

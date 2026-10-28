@@ -3,6 +3,7 @@
 import { Outlet } from "react-router-dom";
 import { Navbar } from "@/components/common/Navbar";
 import { Toaster } from "@/components/common/Toaster";
+import { ChatWidget } from "@/components/chat/ChatWidget";
 
 export function Layout() {
   return (
@@ -12,6 +13,7 @@ export function Layout() {
         <Outlet />
       </main>
       <Toaster />
+      <ChatWidget />
     </div>
   );
 }

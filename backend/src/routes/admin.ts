@@ -18,6 +18,7 @@ import { requireAdmin, type AppEnv } from "../middleware/auth";
 import { insertProduct, updateProductHandler, deleteProductHandler } from "./products";
 import { createCategoryHandler, updateCategoryHandler, deleteCategoryHandler } from "./categories";
 import { serializeOrder } from "./orders";
+import { syncAll, scheduleProductSync } from "../ai/rag";
 
 export const adminRoutes = new Hono<AppEnv>();
 
@@ -135,15 +136,29 @@ adminRoutes.get("/products", async (c) => {
 });
 
 adminRoutes.post("/products", validate("json", ProductCreateSchema), async (c) => {
-  return c.json({ data: await insertProduct(c.env.DB, c.req.valid("json")) }, 201);
+  const product = await insertProduct(c.env.DB, c.req.valid("json"));
+  scheduleProductSync(c, (product as { id?: string } | null)?.id);
+  return c.json({ data: product }, 201);
 });
 
 adminRoutes.put("/products/:id", validate("json", ProductUpdateSchema), async (c) => {
-  return updateProductHandler(c, c.req.param("id"), c.req.valid("json"));
+  const res = await updateProductHandler(c, c.req.param("id"), c.req.valid("json"));
+  scheduleProductSync(c, c.req.param("id"));
+  return res;
 });
 
 adminRoutes.delete("/products/:id", async (c) => {
-  return deleteProductHandler(c, c.req.param("id"));
+  const res = await deleteProductHandler(c, c.req.param("id"));
+  scheduleProductSync(c, c.req.param("id"));
+  return res;
+});
+
+// ---------- Chatbot AI: nạp lại vector sách + chính sách ----------
+adminRoutes.post("/ai/sync", async (c) => {
+  if (!c.env.AI || !c.env.VECTORIZE) {
+    return c.json({ error: { code: "AI_DISABLED", message: "Trợ lý AI chưa được bật trên máy chủ này" } }, 503);
+  }
+  return c.json({ data: await syncAll(c.env) });
 });
 
 // ---------- Categories (admin) ----------

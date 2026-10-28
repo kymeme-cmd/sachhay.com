@@ -16,7 +16,7 @@ export interface AuthUser {
 export type AppEnv = { Bindings: Env; Variables: { user: AuthUser } };
 
 /** Xác thực Bearer token; trả về user hoặc null */
-async function authenticate(c: Context<AppEnv>): Promise<AuthUser | null> {
+export async function authenticate(c: Context<AppEnv>): Promise<AuthUser | null> {
   const existing = c.get("user");
   if (existing) return existing;
 

@@ -126,6 +126,15 @@ export const ReviewUpsertSchema = z.object({
   comment: z.string().max(1000, "Nhận xét tối đa 1000 ký tự").optional().nullable(),
 });
 
+// ---------- Chatbot ----------
+export const ChatSchema = z.object({
+  message: z.string().trim().min(1, "Vui lòng nhập câu hỏi").max(500, "Câu hỏi tối đa 500 ký tự"),
+  history: z
+    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(4000) }))
+    .max(6)
+    .optional(),
+});
+
 // ---------- Admin Order ----------
 export const OrderStatusUpdateSchema = z.object({
   status: z.enum([
