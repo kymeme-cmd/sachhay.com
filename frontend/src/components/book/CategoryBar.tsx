@@ -36,7 +36,7 @@ export function CategoryBar({ categories, active, onSelect }: CategoryBarProps) 
             className={`snap-start flex-shrink-0 px-4 py-2 rounded-full text-sm whitespace-nowrap border transition-colors ${
               isActive
                 ? "bg-primary text-white border-primary font-semibold"
-                : "bg-white text-gray-700 border-gray-300 active:bg-gray-100"
+                : "bg-light text-gray-700 border-gray-300 active:bg-gray-100"
             }`}
           >
             {c.name}

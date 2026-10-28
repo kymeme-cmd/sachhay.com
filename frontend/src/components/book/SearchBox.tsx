@@ -124,7 +124,7 @@ export function SearchBox({ value, onChange, onSubmit }: SearchBoxProps) {
       )}
 
       {showDropdown && (
-        <div className="absolute z-30 mt-2 w-full rounded-xl bg-white border border-gray-200 shadow-lg overflow-hidden">
+        <div className="absolute z-30 mt-2 w-full rounded-xl bg-light border border-gray-200 shadow-lg overflow-hidden">
           {loading && suggestions.length === 0 ? (
             <p className="px-4 py-3 text-sm text-gray-500">Đang tìm...</p>
           ) : suggestions.length === 0 ? (

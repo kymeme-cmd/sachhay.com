@@ -16,7 +16,7 @@ export function Navbar() {
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
 
   return (
-    <nav className="sticky top-0 z-50 bg-white border-b border-gray-200">
+    <nav className="sticky top-0 z-50 bg-light border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2">
@@ -73,7 +73,7 @@ export function Navbar() {
         </div>
       </div>
       {isOpen && (
-        <div className="md:hidden border-t border-gray-200 bg-white px-4 py-4 space-y-4">
+        <div className="md:hidden border-t border-gray-200 bg-light px-4 py-4 space-y-4">
           <Link to="/" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-primary">Trang chủ</Link>
           <Link to="/books" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-primary">Danh sách sách</Link>
           <Link to="/cart" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-primary">Giỏ hàng</Link>

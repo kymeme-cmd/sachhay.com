@@ -138,7 +138,7 @@ export default function BookList() {
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm border ${
                 filters.minPrice !== undefined || filters.maxPrice !== undefined
                   ? "border-primary bg-primary/5 text-primary font-semibold"
-                  : "border-gray-300 bg-white text-gray-700"
+                  : "border-gray-300 bg-light text-gray-700"
               }`}
             >
               <SlidersHorizontal size={16} /> Lọc giá
@@ -164,7 +164,7 @@ export default function BookList() {
               <select
                 value={filters.sort}
                 onChange={(e) => update({ sort: e.target.value as SortKey })}
-                className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 focus:ring-2 focus:ring-primary"
+                className="px-3 py-2 rounded-lg border border-gray-300 bg-light text-gray-800 focus:ring-2 focus:ring-primary"
               >
                 {(Object.keys(SORT_OPTIONS) as SortKey[]).filter((key) => key !== "relevance" || !!filters.search).map((key) => (
                   <option key={key} value={key}>{SORT_OPTIONS[key].label}</option>

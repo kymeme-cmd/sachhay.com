@@ -24,7 +24,7 @@ export function Toaster() {
         <div
           key={t.id}
           role="status"
-          className="pointer-events-auto flex items-start gap-3 rounded-xl bg-white border border-gray-200 shadow-lg px-4 py-3 animate-slide-up"
+          className="pointer-events-auto flex items-start gap-3 rounded-xl bg-light border border-gray-200 shadow-lg px-4 py-3 animate-slide-up"
         >
           <span className={`mt-0.5 ${styles[t.type].color}`}>{styles[t.type].icon}</span>
           <div className="flex-1 min-w-0">

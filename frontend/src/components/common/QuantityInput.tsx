@@ -31,7 +31,7 @@ export function QuantityInput({ value, onChange, min = 1, max, disabled }: Quant
     "w-10 h-11 flex items-center justify-center text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed";
 
   return (
-    <div className="inline-flex items-center rounded-xl border border-gray-300 bg-white overflow-hidden">
+    <div className="inline-flex items-center rounded-xl border border-gray-300 bg-light overflow-hidden">
       <button type="button" className={btn} onClick={() => onChange(clamp(value - 1))} disabled={disabled || value <= min} aria-label="Giảm số lượng">
         <Minus size={16} />
       </button>

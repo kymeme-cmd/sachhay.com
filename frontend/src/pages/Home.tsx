@@ -51,10 +51,10 @@ export default function Home() {
             Tuyển chọn sách hay, giá cả phải chăng, giao hàng nhanh chóng đến tận tay bạn.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Link to="/books" className="btn-primary w-full sm:w-auto">
+            <Link to="/books" className="inline-flex justify-center bg-paper text-primary px-6 py-2.5 rounded-xl font-semibold hover:bg-white transition-colors w-full sm:w-auto">
               Xem tất cả sách
             </Link>
-            <Link to="/cart" className="btn-primary w-full sm:w-auto" style={{ background: "transparent", border: "2px solid white" }}>
+            <Link to="/cart" className="inline-flex justify-center px-6 py-2.5 rounded-xl font-medium border-2 border-paper/80 text-white hover:bg-white/10 transition-colors w-full sm:w-auto">
               Giỏ hàng ({itemCount || 0})
             </Link>
           </div>

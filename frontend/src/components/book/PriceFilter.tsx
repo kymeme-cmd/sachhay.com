@@ -39,7 +39,7 @@ export function PriceFilter({ min, max, onChange }: PriceFilterProps) {
                 name="price-range"
                 checked={active}
                 onChange={() => onChange({ minPrice: r.min, maxPrice: r.max })}
-                className="accent-[#e94560]"
+                className="accent-accent"
               />
               <span className={active ? "font-semibold text-gray-900" : ""}>{r.label}</span>
             </label>

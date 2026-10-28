@@ -7,13 +7,16 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-paper text-gray-900 antialiased;
+  }
+  h1, h2, h3 {
+    @apply font-serif;
   }
 }
 
 @layer components {
   .card {
-    @apply bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden transition-all hover:shadow-md;
+    @apply bg-light rounded-2xl border border-gray-200 shadow-sm overflow-hidden transition-all hover:shadow-md;
   }
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
