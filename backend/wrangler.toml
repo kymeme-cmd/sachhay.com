@@ -82,6 +82,15 @@ binding = "DB"
 database_name = "d1"
 database_id = "718ed118-767c-4ce2-9f9e-cb158ff06885"
 
+# Gộp giao diện vào cùng Worker: https://ecommerce-backend.kyvang222.workers.dev hiện luôn trang web.
+# /api/* và /health chạy code Worker; đường dẫn khác trả file tĩnh của frontend,
+# không khớp file nào (ví dụ /books, /cart) → index.html để React Router xử lý.
+# Build frontend trước khi deploy: npm run deploy:prod
+[env.production.assets]
+directory = "../frontend/dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/health"]
+
 # R2 (ảnh bìa): bật R2 trên dashboard, tạo bucket rồi bỏ comment khối dưới
 # [[env.production.r2_buckets]]
 # binding = "R2"
