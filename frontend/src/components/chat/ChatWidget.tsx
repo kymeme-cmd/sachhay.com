@@ -59,6 +59,9 @@ export function ChatWidget() {
 
   useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
 
+  // Trên điện thoại khung chat che cả màn hình → đóng lại khi mở trang sách
+  const closeOnMobile = () => { if (window.innerWidth < 640) setOpen(false); };
+
   const send = async (text: string) => {
     const message = text.trim();
     if (!message || sending) return;
@@ -135,10 +138,12 @@ export function ChatWidget() {
 
             {messages.map((m, i) => (
               <div key={i} className="space-y-2">
-                <Bubble role={m.role} error={m.error}>{m.content}</Bubble>
+                <Bubble role={m.role} error={m.error}>
+                  {m.role === "assistant" && !m.error ? <RichText text={m.content} books={m.books ?? []} onOpen={closeOnMobile} /> : m.content}
+                </Bubble>
                 {m.books && m.books.length > 0 && (
-                  <div className="space-y-2 pl-1">
-                    {m.books.map((b) => <ChatBookCard key={b.id} book={b} onOpen={() => setOpen(window.innerWidth >= 640)} />)}
+                  <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1 snap-x">
+                    {m.books.map((b) => <ChatBookCard key={b.id} book={b} onOpen={closeOnMobile} />)}
                   </div>
                 )}
               </div>
@@ -194,24 +199,80 @@ function Bubble({ role, error, children }: { role: ChatTurn["role"]; error?: boo
   );
 }
 
+/** Thẻ sách dạng bìa đứng, xếp thành dải vuốt ngang dưới câu trả lời */
 function ChatBookCard({ book, onOpen }: { book: ChatBook; onOpen: () => void }) {
   return (
-    <Link to={`/books/${book.id}`} onClick={onOpen} className="flex gap-3 p-2 rounded-xl bg-light border border-gray-200 hover:border-primary hover:shadow-sm transition-all">
-      <img
-        src={getProductImageUrl(book.images?.[0]?.r2_key)}
-        alt={book.name}
-        onError={(e) => { (e.target as HTMLImageElement).src = fallbackImageUrl(); }}
-        className="w-12 h-[72px] rounded-md object-cover bg-gray-200 flex-shrink-0"
-      />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-gray-800 line-clamp-2">{book.name}</p>
-        {book.author && <p className="text-xs text-gray-500 truncate">{book.author}</p>}
-        <RatingLine product={book} size={12} />
-        <p className="text-sm font-bold text-accent">
-          {formatCurrency(book.price)}
-          {book.stock <= 0 && <span className="ml-2 text-xs font-medium text-gray-500">Hết hàng</span>}
-        </p>
+    <Link to={`/books/${book.id}`} onClick={onOpen} className="group w-[124px] flex-shrink-0 snap-start rounded-xl bg-light border border-gray-200 p-2 hover:border-primary hover:shadow-md transition-all">
+      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-gray-200">
+        <img
+          src={getProductImageUrl(book.images?.[0]?.r2_key)}
+          alt={book.name}
+          loading="lazy"
+          onError={(e) => { (e.target as HTMLImageElement).src = fallbackImageUrl(); }}
+          className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${book.stock <= 0 ? "grayscale opacity-70" : ""}`}
+        />
       </div>
+      <p className="mt-1.5 text-xs font-semibold text-gray-800 leading-snug line-clamp-2 min-h-[2rem]">{book.name}</p>
+      {(book.review_count ?? 0) > 0 && <RatingLine product={book} size={10} />}
+      <p className="text-sm font-bold text-accent">{formatCurrency(book.price)}</p>
+      {book.stock <= 0 && <p className="text-[11px] text-gray-500">Hết hàng</p>}
     </Link>
+  );
+}
+
+/**
+ * Hiển thị câu trả lời có định dạng nhẹ: **đậm**, gạch đầu dòng (*, -, •).
+ * Tên sách in đậm khớp với thẻ sách → thành liên kết tới trang sách. Không dùng HTML thô (an toàn).
+ */
+function RichText({ text, books, onOpen }: { text: string; books: ChatBook[]; onOpen: () => void }) {
+  const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[đĐ]/g, "d").toLowerCase().replace(/["“”]/g, "").trim();
+  const bookByName = new Map(books.map((b) => [norm(b.name), b]));
+
+  const inline = (line: string, key: string) =>
+    line.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
+      const m = part.match(/^\*\*([^*]+)\*\*$/);
+      if (!m) return <span key={`${key}-${i}`}>{part.replace(/\*/g, "")}</span>;
+      const book = bookByName.get(norm(m[1]));
+      return book ? (
+        <Link key={`${key}-${i}`} to={`/books/${book.id}`} onClick={onOpen} className="font-semibold text-primary underline decoration-amber-400 decoration-2 underline-offset-2 hover:text-accent">
+          {m[1].replace(/["“”]/g, "")}
+        </Link>
+      ) : (
+        <strong key={`${key}-${i}`} className="font-semibold text-gray-900">{m[1]}</strong>
+      );
+    });
+
+  // Gom các dòng gạch đầu dòng liên tiếp thành 1 danh sách
+  const blocks: Array<{ type: "p" | "ul"; lines: string[] }> = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const bullet = line.match(/^(?:[*•-]|\d+\.)\s+(.*)$/);
+    if (bullet) {
+      const last = blocks[blocks.length - 1];
+      if (last?.type === "ul") last.lines.push(bullet[1]);
+      else blocks.push({ type: "ul", lines: [bullet[1]] });
+    } else {
+      blocks.push({ type: "p", lines: [line] });
+    }
+  }
+
+  return (
+    <div className="space-y-2 whitespace-normal">
+      {blocks.map((b, i) =>
+        b.type === "ul" ? (
+          <ul key={i} className="space-y-1.5">
+            {b.lines.map((l, j) => (
+              <li key={j} className="flex gap-2">
+                <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                <span>{inline(l, `${i}-${j}`)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p key={i}>{inline(b.lines[0], `${i}`)}</p>
+        )
+      )}
+    </div>
   );
 }
