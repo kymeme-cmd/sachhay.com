@@ -1,0 +1,39 @@
+{
+  "name": "ecommerce-backend",
+  "version": "1.0.0",
+  "description": "E-commerce backend running on Cloudflare Workers",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:prod": "wrangler deploy --env production",
+    "migrate": "wrangler d1 execute ecommerce --local --file=./migrations/0001_schema.sql",
+    "migrate:remote": "wrangler d1 execute ecommerce --remote --file=./migrations/0001_schema.sql",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext ts",
+    "test": "vitest",
+    "seed": "wrangler d1 execute ecommerce --local --file=./migrations/0002_seed_books.sql && wrangler d1 execute ecommerce --local --file=./migrations/0003_seed_more_books.sql",
+    "seed:remote": "wrangler d1 execute ecommerce --remote --file=./migrations/0002_seed_books.sql && wrangler d1 execute ecommerce --remote --file=./migrations/0003_seed_more_books.sql",
+    "seed:covers": "node seed/upload-covers.mjs",
+    "seed:covers:remote": "node seed/upload-covers.mjs --remote"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "@types/ws": "^8.5.13",
+    "eslint": "^9.11.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.2",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.153.0"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^5.20261023.1",
+    "@hono/zod-validator": "^0.9.1",
+    "hono": "^4.8.0",
+    "jose": "^6.2.2",
+    "uuid": "^14.0.3",
+    "zod": "^3.23.8"
+  }
+}

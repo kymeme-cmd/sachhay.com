@@ -1,0 +1,92 @@
+name = "ecommerce-backend"
+main = "src/index.ts"
+compatibility_date = "2024-09-24"
+
+# Logpush for production logging
+# ============================================================
+# Environment Variables (secrets set via `wrangler secret put`)
+# ============================================================
+# ============================================================
+[vars]
+ENVIRONMENT = "development"
+JWT_SECRET = "dev-only-change-me"
+JWT_EXPIRES_IN = "15m"
+REFRESH_TOKEN_EXPIRES_IN = "7d"
+REFRESH_SECRET = "dev-refresh-secret-change-me"
+
+# ============================================================
+# D1 Database Bindings
+# ============================================================
+[[d1_databases]]
+binding = "DB"
+database_name = "ecommerce"
+database_id = "718ed118-767c-4ce2-9f9e-cb158ff06885"
+
+# ============================================================
+# R2 Bucket Bindings
+# ============================================================
+# ============================================================
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "ecommerce-assets"
+
+# ============================================================
+# Workers KV Namespace Bindings
+# ============================================================
+[[kv_namespaces]]
+binding = "KV"
+id = "kv-namespace-id-dev"
+preview_id = "kv-namespace-preview-id-dev"
+
+# ============================================================
+# Environments: staging & production
+# ============================================================
+[env.staging]
+name = "ecommerce-backend-staging"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+JWT_SECRET = "staging-jwt-secret-change-me"
+REFRESH_SECRET = "staging-refresh-secret-change-me"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "ecommerce_staging"
+database_id = "staging-d1-database-id"
+
+[[env.staging.r2_buckets]]
+binding = "R2"
+bucket_name = "ecommerce-staging-assets"
+
+[[env.staging.kv_namespaces]]
+binding = "KV"
+id = "kv-staging-id"
+preview_id = "kv-staging-preview-id"
+
+[env.production]
+name = "ecommerce-backend"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+JWT_SECRET = "production-jwt-secret-change-me"
+REFRESH_SECRET = "production-refresh-secret-change-me"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "ecommerce"
+database_id = "production-d1-database-id"
+
+[[env.production.r2_buckets]]
+binding = "R2"
+bucket_name = "ecommerce-production-assets"
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "kv-production-id"
+preview_id = "kv-production-preview-id"
+
+# ============================================================
+# Cron Triggers (for maintenance tasks)
+# ============================================================
+[triggers]
+crons = ["0 2 * * *"]  # Daily at 2am UTC - cleanup expired sessions/tokens

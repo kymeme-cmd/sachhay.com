@@ -1,0 +1,29 @@
+# Thư viện (cài lại bằng npm install)
+node_modules/
+
+# Bản build frontend
+frontend/dist/
+dist/
+
+# Dữ liệu local của Wrangler (database D1/R2/KV trên máy - có tài khoản người dùng)
+.wrangler/
+
+# Biến môi trường / khóa bí mật
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+
+# Log & file tạm
+*.log
+npm-debug.log*
+backend/seed/.covers.sql
+
+# Hệ điều hành / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea/
