@@ -65,27 +65,27 @@ binding = "KV"
 id = "kv-staging-id"
 preview_id = "kv-staging-preview-id"
 
+# Deploy: npx wrangler deploy --env production
+# JWT_SECRET / REFRESH_SECRET đặt bằng `npx wrangler secret put <TÊN> --env production`
+# (KHÔNG ghi khóa thật vào file này vì file được đẩy lên GitHub)
 [env.production]
 name = "ecommerce-backend"
 
 [env.production.vars]
 ENVIRONMENT = "production"
-JWT_SECRET = "production-jwt-secret-change-me"
-REFRESH_SECRET = "production-refresh-secret-change-me"
+JWT_EXPIRES_IN = "15m"
+REFRESH_TOKEN_EXPIRES_IN = "7d"
+CORS_ORIGINS = "https://sachhay-com.pages.dev"
 
 [[env.production.d1_databases]]
 binding = "DB"
-database_name = "ecommerce"
-database_id = "production-d1-database-id"
+database_name = "d1"
+database_id = "718ed118-767c-4ce2-9f9e-cb158ff06885"
 
-[[env.production.r2_buckets]]
-binding = "R2"
-bucket_name = "ecommerce-production-assets"
-
-[[env.production.kv_namespaces]]
-binding = "KV"
-id = "kv-production-id"
-preview_id = "kv-production-preview-id"
+# R2 (ảnh bìa): bật R2 trên dashboard, tạo bucket rồi bỏ comment khối dưới
+# [[env.production.r2_buckets]]
+# binding = "R2"
+# bucket_name = "ecommerce-assets"
 
 # ============================================================
 # Cron Triggers (for maintenance tasks)

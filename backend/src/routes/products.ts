@@ -115,7 +115,7 @@ productRoutes.delete("/:id/images/:imageId", requireAdmin, async (c) => {
   }
 
   try {
-    await c.env.R2.delete(image.r2_key);
+    await c.env.R2?.delete(image.r2_key);
   } catch {
     // Ignore R2 errors, continue with DB deletion
   }
@@ -212,7 +212,7 @@ export async function deleteProductHandler(c: Context<AppEnv>, id: string) {
     c.env.DB.prepare(`DELETE FROM products WHERE id = ?`).bind(id),
   ]);
   if (images.length > 0) {
-    try { await c.env.R2.delete(images.map((i) => i.r2_key)); } catch { /* bỏ qua lỗi R2 */ }
+    try { await c.env.R2?.delete(images.map((i) => i.r2_key)); } catch { /* bỏ qua lỗi R2 */ }
   }
   return c.json({ data: { message: "Đã xóa sản phẩm" } });
 }

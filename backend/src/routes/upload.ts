@@ -18,6 +18,9 @@ const MAX_SIZE = 5 * 1024 * 1024;
 
 // ---------- Upload image to R2 ----------
 uploadRoutes.post("/image", requireAdmin, async (c) => {
+  if (!c.env.R2) {
+    return c.json({ error: { code: "R2_DISABLED", message: "Chưa cấu hình kho ảnh (R2) trên server" } }, 503);
+  }
   const formData = await c.req.formData();
   const file = formData.get("file");
 
@@ -61,14 +64,15 @@ uploadRoutes.delete("/image/*", requireAdmin, async (c) => {
     return c.json({ error: { code: "VALIDATION", message: "Thiếu key hình ảnh" } }, 400);
   }
 
-  await c.env.R2.delete(decodeURIComponent(key));
+  await c.env.R2?.delete(decodeURIComponent(key));
   return c.json({ data: { message: "Đã xóa hình ảnh" } });
 });
 
 // ---------- Serve image from R2 (public) ----------
 imageRoutes.get("/*", async (c) => {
   const key = decodeURIComponent(c.req.path.replace(/^.*?\/images\//, ""));
-  if (!key.startsWith("products/")) {
+  // Chưa có R2 (ví dụ production chưa bật) → 404, frontend tự hiện ảnh mặc định
+  if (!key.startsWith("products/") || !c.env.R2) {
     return c.json({ error: { code: "NOT_FOUND", message: "Không tìm thấy hình ảnh" } }, 404);
   }
 

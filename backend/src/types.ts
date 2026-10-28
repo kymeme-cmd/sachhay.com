@@ -11,7 +11,7 @@ export type InventoryType = "sale" | "restock" | "adjustment" | "return";
 // Cloudflare Workers environment bindings
 export interface Env {
   DB: D1Database;
-  R2: R2Bucket;
+  R2?: R2Bucket; // tùy chọn: production có thể chưa bật R2
   KV: KVNamespace;
   ENVIRONMENT: string;
   JWT_SECRET: string;

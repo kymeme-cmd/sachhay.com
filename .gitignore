@@ -12,6 +12,8 @@ dist/
 .env
 .env.*
 !.env.example
+# URL API công khai cho bản build production (không chứa bí mật)
+!frontend/.env.production
 .dev.vars
 .dev.vars.*
 
@@ -180,3 +182,7 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Ngoại lệ đặt cuối file để thắng các mẫu .env.* phía trên:
+# URL API công khai cho bản build production (không chứa bí mật)
+!frontend/.env.production
