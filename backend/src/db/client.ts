@@ -144,9 +144,14 @@ export async function listCategories(db: D1Database): Promise<DBCategory[]> {
 
 // ---------- PRODUCT ----------
 
+/** Cột sản phẩm + điểm đánh giá trung bình và số lượt đánh giá (bảng reviews) */
+const PRODUCT_COLUMNS = `id, category_id, name, slug, author, description, price, stock, sku, is_active, created_at, updated_at,
+  (SELECT ROUND(AVG(rating), 1) FROM reviews WHERE reviews.product_id = products.id) AS avg_rating,
+  (SELECT COUNT(*) FROM reviews WHERE reviews.product_id = products.id) AS review_count`;
+
 export async function findProductById(db: D1Database, id: string): Promise<DBProduct | null> {
   const { results } = await db.prepare(
-    `SELECT id, category_id, name, slug, author, description, price, stock, sku, is_active, created_at, updated_at FROM ${DB_TABLES.PRODUCTS} WHERE id = ?`
+    `SELECT ${PRODUCT_COLUMNS} FROM ${DB_TABLES.PRODUCTS} WHERE id = ?`
   ).bind(id).all();
   if (!results || results.length === 0) return null;
   return results[0] as unknown as DBProduct;
@@ -154,7 +159,7 @@ export async function findProductById(db: D1Database, id: string): Promise<DBPro
 
 export async function findProductBySlug(db: D1Database, slug: string): Promise<DBProduct | null> {
   const { results } = await db.prepare(
-    `SELECT id, category_id, name, slug, author, description, price, stock, sku, is_active, created_at, updated_at FROM ${DB_TABLES.PRODUCTS} WHERE slug = ?`
+    `SELECT ${PRODUCT_COLUMNS} FROM ${DB_TABLES.PRODUCTS} WHERE slug = ?`
   ).bind(slug).all();
   if (!results || results.length === 0) return null;
   return results[0] as unknown as DBProduct;
@@ -229,7 +234,7 @@ export async function listProducts(db: D1Database, filters: {
   }
 
   const { results } = await db.prepare(
-    `SELECT id, category_id, name, slug, author, description, price, stock, sku, is_active, created_at, updated_at FROM ${DB_TABLES.PRODUCTS} WHERE 1=1 ${where} ORDER BY ${orderClause} LIMIT ? OFFSET ?`
+    `SELECT ${PRODUCT_COLUMNS} FROM ${DB_TABLES.PRODUCTS} WHERE 1=1 ${where} ORDER BY ${orderClause} LIMIT ? OFFSET ?`
   ).bind(...params, ...orderParams, perPage, offset).all();
 
   const products = await attachImages(db, results as unknown as DBProduct[]);
@@ -600,7 +605,8 @@ export async function createOrder(db: D1Database, data: {
 
 export async function findOrderItems(db: D1Database, orderId: string) {
   const { results } = await db.prepare(
-    `SELECT oi.id, oi.order_id, oi.product_id, oi.quantity, oi.unit_price, oi.subtotal, p.name, p.slug
+    `SELECT oi.id, oi.order_id, oi.product_id, oi.quantity, oi.unit_price, oi.subtotal, p.name, p.slug, p.author,
+            (SELECT r2_key FROM ${DB_TABLES.PRODUCT_IMAGES} pi WHERE pi.product_id = oi.product_id ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS image_key
      FROM ${DB_TABLES.ORDER_ITEMS} oi
      JOIN ${DB_TABLES.PRODUCTS} p ON p.id = oi.product_id
      WHERE oi.order_id = ?`

@@ -30,11 +30,11 @@ export function Navbar() {
             <Link to="/" className="text-sm font-medium text-gray-600 hover:text-primary">Trang chủ</Link>
             <Link to="/books" className="text-sm font-medium text-gray-600 hover:text-primary">Danh sách sách</Link>
             <Link to="/cart" className="text-sm font-medium text-gray-600 hover:text-primary">Giỏ hàng</Link>
+            <Link to="/history" className="text-sm font-medium text-gray-600 hover:text-primary">Lịch sử</Link>
 
             <div className="hidden sm:flex items-center gap-4">
               {isAuthenticated ? (
                 <>
-                  <Link to="/orders" className="text-sm font-medium text-gray-600 hover:text-primary">Đơn hàng</Link>
                   {isAdmin && (
                     <Link to="/admin" className="text-sm font-medium text-gray-600 hover:text-primary">Quản trị</Link>
                   )}
@@ -77,10 +77,10 @@ export function Navbar() {
           <Link to="/" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-primary">Trang chủ</Link>
           <Link to="/books" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-primary">Danh sách sách</Link>
           <Link to="/cart" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-primary">Giỏ hàng</Link>
+          <Link to="/history" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-primary">Lịch sử</Link>
           <div className="pt-4 border-t border-gray-100">
             {isAuthenticated ? (
               <>
-                <Link to="/orders" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-primary">Đơn hàng</Link>
                 {isAdmin && <Link to="/admin" onClick={() => setIsOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-primary">Quản trị</Link>}
                 <button onClick={logout} className="block w-full px-3 py-2 rounded-lg text-base font-medium text-red-600 hover:bg-red-50">Đăng xuất</button>
               </>

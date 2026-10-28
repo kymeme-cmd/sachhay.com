@@ -9,6 +9,7 @@ import { errorHandler } from "./middleware/error";
 import { authRoutes } from "./routes/auth";
 import { categoryRoutes } from "./routes/categories";
 import { productRoutes } from "./routes/products";
+import { reviewRoutes } from "./routes/reviews";
 import { cartRoutes } from "./routes/cart";
 import { orderRoutes } from "./routes/orders";
 import { adminRoutes } from "./routes/admin";
@@ -44,6 +45,7 @@ const api = app.basePath("/api");
 api.route("/auth", authRoutes);             // public
 api.route("/categories", categoryRoutes);   // public read, admin write
 api.route("/products", productRoutes);      // public read, admin write
+api.route("/products", reviewRoutes);       // /products/:id/reviews: public read, buyer write
 api.route("/cart", cartRoutes);             // auth required
 api.route("/orders", orderRoutes);          // auth required
 api.route("/admin", adminRoutes);           // admin role required

@@ -50,7 +50,26 @@ export interface Product {
   created_at?: number;
   updated_at?: number;
   images?: Pick<ProductImage, "r2_key">[] | ProductImage[];
-  category?: Category;
+  category?: Category | null;
+  avg_rating?: number | null;
+  review_count?: number;
+}
+
+export interface Review {
+  id: string;
+  product_id: string;
+  user_id: string;
+  user_name: string;
+  rating: number;
+  comment?: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ReviewSummary {
+  average: number | null;
+  count: number;
+  distribution: Record<number, number>;
 }
 
 export interface CartItem {
@@ -82,6 +101,8 @@ export interface OrderItem {
   subtotal: number;
   name?: string;
   slug?: string;
+  author?: string | null;
+  image_key?: string | null;
   product?: Product;
 }
 

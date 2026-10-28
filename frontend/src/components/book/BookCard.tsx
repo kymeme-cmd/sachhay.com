@@ -8,6 +8,7 @@ import { ShoppingCart } from "lucide-react";
 import type { Product } from "@/types";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { fallbackImageUrl, getProductImageUrl } from "@/utils/image";
+import { StarRating } from "./StarRating";
 
 /** Dưới ngưỡng này hiển thị cảnh báo "Chỉ còn X cuốn" */
 export const LOW_STOCK_THRESHOLD = 5;
@@ -63,6 +64,12 @@ export function BookCard({ product: p, onAddToCart }: BookCardProps) {
           {p.name}
         </Link>
         <p className="text-xs sm:text-sm text-gray-500 mt-1 line-clamp-1">{p.author || " "}</p>
+        {(p.review_count ?? 0) > 0 && (
+          <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+            <StarRating value={p.avg_rating ?? 0} size={13} />
+            <span>({p.review_count})</span>
+          </div>
+        )}
 
         <div className="mt-auto pt-3">
           <div className="flex items-baseline justify-between gap-2 flex-wrap">

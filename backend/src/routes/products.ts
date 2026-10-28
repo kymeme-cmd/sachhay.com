@@ -4,7 +4,7 @@
 
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { listProducts, findProductById, createProductImage, attachImages } from "../db/client";
+import { listProducts, findProductById, findCategoryById, createProductImage, attachImages } from "../db/client";
 import {
   ProductCreateSchema,
   ProductUpdateSchema,
@@ -43,7 +43,8 @@ productRoutes.get("/:id", async (c) => {
     return c.json({ error: { code: "NOT_FOUND", message: "Sản phẩm không tồn tại" } }, 404);
   }
   const [withImages] = await attachImages(c.env.DB, [product]);
-  return c.json({ data: withImages });
+  const category = product.category_id ? await findCategoryById(c.env.DB, product.category_id) : null;
+  return c.json({ data: { ...withImages, category } });
 });
 
 // ---------- Create (admin) ----------

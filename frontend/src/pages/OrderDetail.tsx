@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { ChevronLeft, MapPin, Truck, CreditCard } from "lucide-react";
+import { ChevronLeft, MapPin, Truck, CreditCard, Star } from "lucide-react";
 import { orderAPI } from "@/api/client";
 import { formatCurrency, formatDate } from "@/utils/formatCurrency";
 import {
@@ -14,6 +14,7 @@ import {
   formatAddress,
   shortOrderId,
 } from "@/utils/order";
+import { fallbackImageUrl, getProductImageUrl } from "@/utils/image";
 import { Loading } from "@/components/common/Loading";
 import { Alert } from "@/components/common/Alert";
 import type { Order, OrderStatusValue } from "@/types";
@@ -43,7 +44,7 @@ export default function OrderDetail() {
     return (
       <div className="max-w-3xl mx-auto px-4 py-12 text-center">
         <Alert type="error" title="Lỗi" description={error || "Không tìm thấy đơn hàng"} />
-        <Link to="/orders" className="btn-primary mt-4 inline-block">Về danh sách đơn hàng</Link>
+        <Link to="/history?tab=orders" className="btn-primary mt-4 inline-block">Về lịch sử mua hàng</Link>
       </div>
     );
   }
@@ -53,8 +54,8 @@ export default function OrderDetail() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <Link to="/orders" className="flex items-center gap-2 text-sm text-primary hover:underline mb-6">
-        <ChevronLeft size={16} /> Đơn hàng của tôi
+      <Link to="/history?tab=orders" className="flex items-center gap-2 text-sm text-primary hover:underline mb-6">
+        <ChevronLeft size={16} /> Lịch sử mua hàng
       </Link>
 
       {justPlaced && (
@@ -92,12 +93,26 @@ export default function OrderDetail() {
           <h3 className="font-semibold text-gray-800 mb-4">Sản phẩm</h3>
           <div className="divide-y divide-gray-100">
             {order.items?.map((item) => (
-              <div key={item.id} className="py-3 flex justify-between gap-4">
-                <div>
+              <div key={item.id} className="py-3 flex items-center gap-4">
+                <Link to={`/books/${item.product_id}`} className="flex-shrink-0">
+                  <img
+                    src={getProductImageUrl(item.image_key)}
+                    alt={item.name}
+                    onError={(e) => { (e.target as HTMLImageElement).src = fallbackImageUrl(); }}
+                    className="w-12 h-[72px] rounded-md object-cover border border-gray-200 bg-gray-200"
+                  />
+                </Link>
+                <div className="flex-1 min-w-0">
                   <Link to={`/books/${item.product_id}`} className="font-medium text-gray-800 hover:text-primary">{item.name}</Link>
+                  {item.author && <p className="text-xs text-gray-500">{item.author}</p>}
                   <p className="text-sm text-gray-500">{formatCurrency(item.unit_price)} × {item.quantity}</p>
+                  {order.status === "delivered" && (
+                    <Link to={`/books/${item.product_id}#reviews`} className="inline-flex items-center gap-1 mt-1 text-sm font-medium text-amber-700 hover:underline">
+                      <Star size={14} className="fill-amber-400 text-amber-400" /> Đánh giá sách này
+                    </Link>
+                  )}
                 </div>
-                <span className="font-medium text-gray-800">{formatCurrency(item.subtotal)}</span>
+                <span className="font-medium text-gray-800 whitespace-nowrap">{formatCurrency(item.subtotal)}</span>
               </div>
             ))}
           </div>

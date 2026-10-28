@@ -16,7 +16,7 @@ const BookList = React.lazy(() => import("@/pages/BookList"));
 const BookDetail = React.lazy(() => import("@/pages/BookDetail"));
 const Cart = React.lazy(() => import("@/pages/Cart"));
 const Checkout = React.lazy(() => import("@/pages/Checkout"));
-const Orders = React.lazy(() => import("@/pages/Orders"));
+const History = React.lazy(() => import("@/pages/History"));
 const OrderDetail = React.lazy(() => import("@/pages/OrderDetail"));
 const Login = React.lazy(() => import("@/pages/Login"));
 const Register = React.lazy(() => import("@/pages/Register"));
@@ -71,7 +71,9 @@ export default function App() {
           <Route path="books/:id" element={<BookDetail />} />
           <Route path="cart" element={<Cart />} />
           <Route path="checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
-          <Route path="orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+          <Route path="history" element={<History />} />
+          {/* Trang đơn hàng cũ nay là tab "Đơn đã mua" trong Lịch sử */}
+          <Route path="orders" element={<Navigate to="/history?tab=orders" replace />} />
           <Route path="orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
 
           {/* Admin routes */}

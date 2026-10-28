@@ -120,6 +120,12 @@ export const OrderCreateSchema = z.object({
   note: z.string().optional(),
 });
 
+// ---------- Reviews ----------
+export const ReviewUpsertSchema = z.object({
+  rating: z.number().int().min(1, "Chọn từ 1 đến 5 sao").max(5, "Chọn từ 1 đến 5 sao"),
+  comment: z.string().max(1000, "Nhận xét tối đa 1000 ký tự").optional().nullable(),
+});
+
 // ---------- Admin Order ----------
 export const OrderStatusUpdateSchema = z.object({
   status: z.enum([

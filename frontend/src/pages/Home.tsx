@@ -13,6 +13,7 @@ import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Alert } from "@/components/common/Alert";
 import { useCart } from "@/hooks/useCart";
+import { RecentlyViewed } from "@/components/book/RecentlyViewed";
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -73,6 +74,8 @@ export default function Home() {
           </div>
         ))}
       </section>
+
+      <RecentlyViewed />
 
       {/* Featured books */}
       <section>

@@ -1,12 +1,16 @@
 // Page: BookDetail - Chi tiet sach
 
-import { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { productAPI } from "@/api/client";
 import { useAddToCart } from "@/hooks/useAddToCart";
-import type { Product } from "@/types";
+import { recordViewed } from "@/hooks/useRecentlyViewed";
+import type { Product, ReviewSummary } from "@/types";
 import { formatCurrency } from "@/utils/formatCurrency";
-import { getProductImageUrl } from "@/utils/image";
+import { fallbackImageUrl, getProductImageUrl } from "@/utils/image";
+import { StarRating } from "@/components/book/StarRating";
+import { ReviewSection } from "@/components/book/ReviewSection";
+import { RecentlyViewed } from "@/components/book/RecentlyViewed";
 import { BookOpen, Mail, Phone, ChevronLeft } from "lucide-react";
 import { Loading } from "@/components/common/Loading";
 import { Alert } from "@/components/common/Alert";
@@ -17,18 +21,35 @@ import { QuantityInput } from "@/components/common/QuantityInput";
 export default function BookDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated } = useAuthStore();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [rating, setRating] = useState<{ average: number | null; count: number }>({ average: null, count: 0 });
 
   useEffect(() => {
     if (!id) return;
+    setLoading(true);
+    setError(null);
+    setQuantity(1);
     productAPI.get(id).then((res) => {
-      setProduct(res.data as Product);
+      const p = res.data as Product;
+      setProduct(p);
+      setRating({ average: p.avg_rating ?? null, count: p.review_count ?? 0 });
+      recordViewed(p);
     }).catch(() => setError("Không thể tải chi tiết sách")).finally(() => setLoading(false));
   }, [id]);
+
+  // Liên kết "/books/:id#reviews" (từ đơn hàng) → cuộn tới phần đánh giá
+  useEffect(() => {
+    if (!loading && product && location.hash === "#reviews") {
+      document.getElementById("reviews")?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [loading, product, location.hash]);
+
+  const handleSummaryChange = useCallback((s: ReviewSummary) => setRating({ average: s.average, count: s.count }), []);
 
   const addToCart = useAddToCart();
   const [adding, setAdding] = useState(false);
@@ -55,17 +76,18 @@ export default function BookDetail() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12">
+      <div>
       <Link to="/books" className="flex items-center gap-2 text-sm text-primary hover:underline mb-6">
         <ChevronLeft size={16} /> Danh mục sách
       </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Image */}
-        <div className="card h-full">
-          <div className="h-80 bg-gray-100 flex items-center justify-center relative overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-12">
+        {/* Ảnh bìa: giữ đúng tỉ lệ sách 2:3, không bị cắt */}
+        <div className="w-full max-w-sm mx-auto lg:max-w-none">
+          <div className="aspect-[2/3] rounded-2xl overflow-hidden bg-gray-200 border border-gray-200 shadow-md">
             {product.images && product.images.length > 0 ? (
-              <img src={getProductImageUrl(product.images[0].r2_key)} alt={product.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='16'%3ENo image%3C/text%3E%3C/svg%3E"; }} />
+              <img src={getProductImageUrl(product.images[0].r2_key)} alt={product.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = fallbackImageUrl(); }} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-400"><BookOpen size={64} /></div>
             )}
@@ -75,9 +97,21 @@ export default function BookDetail() {
         {/* Info */}
         <div className="space-y-6">
           <div>
-            <span className="text-xs font-medium text-primary uppercase tracking-wider mb-2 block">{product.category?.name || "Chưa phân loại"}</span>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">{product.name}</h1>
-            <p className="text-gray-600">{product.description || "Không có mô tả chi tiết."}</p>
+            {product.category ? (
+              <Link to={`/books?category=${product.category.id}`} className="text-xs font-medium text-primary uppercase tracking-wider mb-2 block hover:underline">{product.category.name}</Link>
+            ) : (
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">Chưa phân loại</span>
+            )}
+            <h1 className="text-3xl font-bold text-gray-800 mb-1">{product.name}</h1>
+            {product.author && <p className="text-gray-600 mb-2">Tác giả: <span className="font-medium text-gray-800">{product.author}</span></p>}
+            <a href="#reviews" onClick={(e) => { e.preventDefault(); document.getElementById("reviews")?.scrollIntoView({ behavior: "smooth" }); }} className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-primary mb-3">
+              {rating.count > 0 ? (
+                <><StarRating value={rating.average ?? 0} /> <span className="font-medium text-gray-800">{rating.average?.toFixed(1)}</span> ({rating.count} đánh giá)</>
+              ) : (
+                <><StarRating value={0} /> Chưa có đánh giá</>
+              )}
+            </a>
+            <p className="text-gray-600 whitespace-pre-line">{product.description || "Không có mô tả chi tiết."}</p>
           </div>
 
           <div className="bg-gray-50 rounded-xl p-6">
@@ -131,6 +165,11 @@ export default function BookDetail() {
           </div>
         </div>
       </div>
+      </div>
+
+      <ReviewSection productId={product.id} onSummaryChange={handleSummaryChange} />
+
+      <RecentlyViewed excludeId={product.id} />
     </div>
   );
 }

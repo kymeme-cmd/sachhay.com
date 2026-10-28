@@ -76,6 +76,8 @@ export interface DBProduct {
   is_active: number;
   created_at: number;
   updated_at: number;
+  avg_rating?: number | null; // tính từ bảng reviews
+  review_count?: number;
 }
 
 export interface DBProductImage {

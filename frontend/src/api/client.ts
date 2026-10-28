@@ -172,6 +172,19 @@ export const productAPI = {
 };
 
 // ============================================================
+// Reviews API (chỉ người đã nhận hàng mới viết được)
+// ============================================================
+
+export const reviewAPI = {
+  list: (productId: string, page = 1) => api.get(`/products/${productId}/reviews`, { params: { page } }),
+  mine: (productId: string) => api.get(`/products/${productId}/reviews/me`),
+  save: (productId: string, data: { rating: number; comment?: string }) =>
+    api.put(`/products/${productId}/reviews`, data),
+  remove: (productId: string) => api.delete(`/products/${productId}/reviews`),
+  adminRemove: (productId: string, reviewId: string) => api.delete(`/products/${productId}/reviews/${reviewId}`),
+};
+
+// ============================================================
 // Upload API (R2)
 // ============================================================
 
