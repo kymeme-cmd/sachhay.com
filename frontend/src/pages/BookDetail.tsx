@@ -93,8 +93,9 @@ export default function BookDetail() {
               <div className="w-full h-full flex items-center justify-center text-gray-400"><BookOpen size={64} /></div>
             )}
           </div>
-          {/* Ảnh bìa thật (.jpg, migration 0009) lấy từ Open Library → ghi nguồn; bìa tự tạo là .png */}
-          {product.images?.[0]?.r2_key.endsWith(".jpg") && (
+          {/* Ảnh bìa từ Open Library (.jpg, migration 0009) → ghi nguồn.
+              Không ghi cho bìa tự tạo (.png) và bìa cửa hàng tự cung cấp (-vn.jpg, migration 0010) */}
+          {product.images?.[0]?.r2_key.endsWith(".jpg") && !product.images[0].r2_key.endsWith("-vn.jpg") && (
             <p className="mt-2 text-center text-xs text-gray-400">
               Ảnh bìa: <a href="https://openlibrary.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Open Library</a>
             </p>
