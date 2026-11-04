@@ -131,14 +131,15 @@ export default function Home() {
         {products.length === 0 ? (
           <EmptyState title="Không có sách nổi bật" description="Hãy quay lại sau." />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {products.map((p) => (
               <Link
                 key={p.id}
                 to={`/books/${p.id}`}
                 className="card group cursor-pointer"
               >
-                <div className="h-48 bg-gray-100 flex items-center justify-center relative overflow-hidden">
+                {/* Tỉ lệ bìa sách 2:3 để ảnh bìa thật không bị cắt */}
+                <div className="aspect-[2/3] bg-gray-100 flex items-center justify-center relative overflow-hidden">
                   {p.images && p.images.length > 0 ? (
                     <img
                       src={getProductImageUrl(p.images[0].r2_key)}
