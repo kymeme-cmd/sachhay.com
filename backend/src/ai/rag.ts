@@ -41,6 +41,18 @@ interface Policy {
   content: string;
 }
 
+interface Author {
+  id: string;
+  name: string;
+  nationality: string | null;
+  born_year: number | null;
+  died_year: number | null;
+  bio: string | null;
+  notable_works: string | null;
+}
+
+const AUTHOR_COLUMNS = "id, name, nationality, born_year, died_year, bio, notable_works";
+
 type ContextBook = DBProduct & { category_name: string | null; sold: number };
 
 export interface ChatResult {
@@ -111,11 +123,16 @@ export async function syncAll(env: Env) {
      FROM products p LEFT JOIN categories c ON c.id = p.category_id`
   ).all<{ id: string; name: string; author: string | null; description: string | null; is_active: number; category: string | null }>();
   const { results: policies } = await db.prepare(`SELECT slug, title, content FROM policies`).all<Policy>();
+  const { results: authors } = await db.prepare(`SELECT ${AUTHOR_COLUMNS} FROM authors`).all<Author>();
 
   const active = books.filter((b) => b.is_active);
   const docs = [
     ...active.map((b) => ({ id: `book:${b.id}`, type: "book", ref: b.id, text: bookDocument(b, b.category) })),
     ...policies.map((p) => ({ id: `policy:${p.slug}`, type: "policy", ref: p.slug, text: `Chính sách ${p.title}: ${p.content}` })),
+    ...authors.map((a) => ({
+      id: `author:${a.id}`, type: "author", ref: a.id,
+      text: `Tác giả ${a.name}${a.nationality ? `, người ${a.nationality}` : ""}. ${a.bio ?? ""} Tác phẩm tiêu biểu: ${a.notable_works ?? ""}`,
+    })),
   ];
 
   for (let i = 0; i < docs.length; i += EMBED_BATCH) {
@@ -127,7 +144,7 @@ export async function syncAll(env: Env) {
   const inactiveIds = books.filter((b) => !b.is_active).map((b) => `book:${b.id}`);
   if (inactiveIds.length > 0) await index.deleteByIds(inactiveIds);
 
-  return { books: active.length, policies: policies.length, removed: inactiveIds.length, embedding_model: EMBED_MODEL };
+  return { books: active.length, policies: policies.length, authors: authors.length, removed: inactiveIds.length, embedding_model: EMBED_MODEL };
 }
 
 /** Cập nhật vector của 1 cuốn sách (sau khi admin tạo/sửa/xóa) */
@@ -161,6 +178,7 @@ export function scheduleProductSync(c: Context<AppEnv>, productId: string | unde
 // ---------- Hiểu câu hỏi (không dùng LLM) ----------
 
 const FOLLOW_UP = /\b(cuon|quyen|sach|cai) (do|nay|kia|tren)\b|\b(no|chung)\b/;
+const AUTHOR_INTENT = /\bla ai\b|\btac gia\b|\bnha van\b|\bnha tho\b|\bhoa si\b|\btieu su\b|\bsinh nam\b|\bnam sinh\b|\bquoc tich\b|\bnguoi nuoc\b|\bcua ai\b|\bai viet\b|\bve ong\b|\bve ba\b/;
 const ORDER_INTENT = /\bdon( hang)?\b|\bma don\b|\border\b|\bda dat\b|\bgiao (chua|toi dau|den dau)\b/;
 const POPULAR_INTENT = /\bban chay\b|\bhay nhat\b|\bnoi bat\b|\byeu thich\b|\bdanh gia cao\b|\bnhieu nguoi\b|\bpho bien\b|\bhot\b|\btop\b|\bnen doc\b|\bgoi y\b/;
 const RETURNS_INTENT = /\bdoi tra\b|\bbao hanh\b|\bhoan tien\b|\btra (hang|lai)\b|\bdoi (sach|hang)\b/;
@@ -207,6 +225,7 @@ export function parsePriceRange(nq: string): { min?: number; max?: number } {
 
 interface Retrieved {
   books: ContextBook[];
+  authors: Author[]; // thông tin tác giả (bảng authors) khi khách hỏi về tác giả
   popular: boolean; // khách hỏi "bán chạy / hay nhất / nên đọc gì"
   policies: Policy[];
   orders: string[] | null; // null = câu hỏi không nhắc đơn hàng
@@ -315,6 +334,32 @@ async function retrieve(env: Env, question: string, history: ChatTurn[], user: A
     .filter((p) => p.is_active)
     .map((p) => ({ ...p, category_name: p.category_id ? catName.get(p.category_id) ?? null : null, sold: soldMap.get(p.id) ?? 0 }));
 
+  // 3b) Tác giả (bảng authors): nêu đúng tên, Vectorize khớp, hoặc hỏi "tác giả/là ai" về sách tìm được
+  const { results: allAuthors } = await db.prepare(`SELECT ${AUTHOR_COLUMNS} FROM authors`).all<Author>();
+  const vectorAuthorIds = new Set(relevant.filter((m) => m.metadata?.type === "author").map((m) => String(m.metadata!.ref)));
+  const asksAuthor = AUTHOR_INTENT.test(nq);
+  const bookAuthors = new Set(asksAuthor ? books.slice(0, 3).map((b) => b.author).filter(Boolean) : []);
+  // Khách nhắc một "tác phẩm tiêu biểu" (vd "Kafka bên bờ biển") → lấy tác giả đó để nói rõ shop chưa có cuốn này
+  const worksMentioned = (a: Author) =>
+    (a.notable_works ?? "").split(";").map((w) => normalizeSearch(w.replace(/\(.*?\)/g, ""))).some((w) => w.length >= 6 && nSearch.includes(w));
+  const authors = allAuthors
+    .filter((a) => {
+      const n = normalizeSearch(a.name);
+      return (n.length >= 5 && nSearch.includes(n)) || (asksAuthor && vectorAuthorIds.has(a.id)) || bookAuthors.has(a.name) || worksMentioned(a);
+    })
+    .slice(0, 3);
+
+  // Kèm sách ĐANG BÁN của các tác giả đó (để gợi ý "shop có cuốn khác cùng tác giả")
+  const missingIds = catalog
+    .filter((b) => authors.some((a) => a.name === b.author) && !books.some((x) => x.id === b.id))
+    .map((b) => b.id);
+  if (missingIds.length > 0 && books.length < MAX_BOOKS) {
+    const extra = await findProductsByIds(db, missingIds.slice(0, MAX_BOOKS - books.length));
+    for (const p of extra) {
+      if (p.is_active) books.push({ ...p, category_name: p.category_id ? catName.get(p.category_id) ?? null : null, sold: soldMap.get(p.id) ?? 0 });
+    }
+  }
+
   // 4) Chính sách: theo vector + từ khóa
   for (const [slug, re] of Object.entries(POLICY_KEYWORDS)) if (re.test(nq)) policySlugs.add(slug);
   const asksReturns = RETURNS_INTENT.test(nq);
@@ -344,7 +389,7 @@ async function retrieve(env: Env, question: string, history: ChatTurn[], user: A
     }
   }
 
-  return { books, popular, policies, orders, orderNeedsLogin, asksReturns, constraintText };
+  return { books, authors, popular, policies, orders, orderNeedsLogin, asksReturns, constraintText };
 }
 
 // ---------- Ngữ cảnh + câu trả lời soạn sẵn ----------
@@ -356,17 +401,28 @@ function describeBook(b: ContextBook): string {
   return `Sách "${b.name}" — tác giả: ${b.author ?? "không rõ"} — thể loại: ${b.category_name ?? "chưa phân loại"} — giá: ${fmtPrice(b.price)} — tồn kho: ${stock} — lượt bán: ${sold} — đánh giá: ${rating} — mô tả: ${b.description ?? "không có"}`;
 }
 
+function describeAuthor(a: Author): string {
+  // Không có năm mất → không nhắc tới (tránh câu "chưa có thông tin năm mất" với tác giả còn sống)
+  // Ghi thành câu tường minh: "1802–1885" từng bị LLM đọc nhầm thành "chưa có năm mất"
+  const years = a.born_year
+    ? a.died_year ? `sinh năm ${a.born_year}, mất năm ${a.died_year}` : `sinh năm ${a.born_year}`
+    : "năm sinh: không có thông tin";
+  return `Tác giả "${a.name}" — quốc tịch: ${a.nationality ?? "không có thông tin"} — ${years} — tiểu sử: ${a.bio ?? "không có thông tin"} — tác phẩm tiêu biểu (chỉ để giới thiệu tác giả, KHÔNG phải danh sách sách cửa hàng đang bán): ${a.notable_works ?? "không có thông tin"}`;
+}
+
 function buildContext(r: Retrieved): { text: string; refs: Array<string | null> } {
   const lines: string[] = [];
   const refs: Array<string | null> = []; // refs[i] = id sách của nguồn [S{i+1}]
   const add = (line: string, bookId: string | null = null) => { refs.push(bookId); lines.push(`[S${refs.length}] ${line}`); };
 
   r.books.forEach((b) => add(describeBook(b), b.id));
+  r.authors.forEach((a) => add(describeAuthor(a)));
   r.policies.forEach((p) => add(`Chính sách "${p.title}": ${p.content}`));
   r.orders?.forEach((o) => add(o));
 
   const notes: string[] = [];
   if (r.popular) notes.push("Khách hỏi sách hay / bán chạy / nên đọc gì. Chỉ được nói \"bán chạy\", \"được đánh giá cao\" dựa trên lượt bán và điểm sao trong NGỮ CẢNH. Nếu chưa có số liệu thì nói thẳng cửa hàng chưa có số liệu, rồi gợi ý dựa trên mô tả sách.");
+  if (r.authors.length) notes.push("Chỉ các dòng bắt đầu bằng 'Sách' mới là sách cửa hàng đang bán. Tác phẩm tiêu biểu trong thông tin tác giả có thể không được bán ở Sách Hay; nếu nhắc tới thì phải nói rõ cửa hàng hiện chưa có, trừ khi cuốn đó cũng có dòng 'Sách'. Thông tin tác giả không có trong NGỮ CẢNH (vd năm sinh để trống) thì nói là chưa có thông tin. Không tự nhắc tới năm mất nếu NGỮ CẢNH không ghi năm mất.");
   if (r.constraintText) notes.push(`Khách lọc theo ${r.constraintText}. Các sách liệt kê ở trên đều thỏa điều kiện này.`);
   if (r.asksReturns) notes.push("Cửa hàng CHƯA công bố chính sách đổi trả / bảo hành / hoàn tiền. Không được tự nêu bất kỳ điều kiện đổi trả nào; hãy nói chưa có thông tin và mời khách liên hệ hỗ trợ.");
   if (r.orderNeedsLogin) notes.push("Khách CHƯA đăng nhập nên không xem được đơn hàng. Hãy mời khách đăng nhập rồi hỏi lại, hoặc xem ở trang Lịch sử.");
@@ -384,6 +440,10 @@ function templateAnswer(r: Retrieved): string {
     parts.push(r.orders.length ? `Các đơn hàng gần đây của bạn:\n${r.orders.map((o) => `• ${o}`).join("\n")}` : "Tài khoản của bạn chưa có đơn hàng nào.");
   }
   if (r.asksReturns) parts.push("Hiện Sách Hay chưa công bố chính sách đổi trả / bảo hành.");
+  for (const a of r.authors) {
+    const years = a.born_year ? ` (${a.born_year}${a.died_year ? `–${a.died_year}` : ""})` : "";
+    parts.push(`**${a.name}**${years}${a.nationality ? ` — ${a.nationality}` : ""}. ${a.bio ?? ""}`.trim());
+  }
   for (const p of r.policies) parts.push(`${p.title}: ${p.content}`);
   if (r.books.length) {
     const head = r.constraintText ? `Đây là các cuốn có ${r.constraintText} mà mình tìm được 📚` : "Mình tìm được mấy cuốn này trong cửa hàng 📚";
@@ -408,6 +468,8 @@ CÁCH TRẢ LỜI CHO HAY:
 - Nếu có một cuốn nổi bật hơn cả, nói rõ "Nếu chỉ chọn một cuốn, mình chọn …" và vì sao.
 - Kết thúc bằng MỘT câu hỏi ngắn, cụ thể để tư vấn tiếp (ví dụ: "Bé thích truyện tranh hay truyện chữ?", "Bạn muốn sách mỏng đọc nhanh hay tiểu thuyết dài?"). Không kết bằng câu chung chung kiểu "bạn tham khảo nhé".
 - Nếu khách chỉ gõ một từ hoặc vài chữ, hiểu là khách đang tìm sách theo từ khóa đó (có thể gõ thiếu chữ hoặc không dấu). Liệt kê các sách khớp, mỗi cuốn một dòng gồm tên, tác giả, giá, còn hàng hay không.
+- Khách hỏi về tác giả ("X là ai?"): giới thiệu ngắn gọn quốc tịch, năm sinh–mất, tiểu sử theo NGỮ CẢNH; sau đó nêu các sách của tác giả mà cửa hàng ĐANG BÁN (dòng "Sách") kèm giá. Tác phẩm tiêu biểu khác chỉ nhắc như thông tin, nói rõ cửa hàng chưa có.
+- Gọi tác giả là "ông" hoặc "bà" (hoặc "tác giả"), không gọi là "bạn ấy", "chú", "bác". Không bao giờ nhắc tới các từ "ngữ cảnh", "dữ liệu được cung cấp", "nguồn [S1]" với khách: hãy nói tự nhiên như người bán sách.
 - Dài khoảng 60–150 từ. Có thể dùng 1 emoji phù hợp (📚, ✨, 🎁), không lạm dụng. Không dùng bảng, không dùng tiêu đề.
 
 QUY TẮC VỀ DỮ LIỆU (tuyệt đối không vi phạm):
@@ -450,6 +512,12 @@ function verifyAnswer(answer: string, contextText: string, question: string): st
     .map((m) => (m[1] ?? m[2] ?? m[3] ?? m[4]).replace(/\s*\[S\d+\]\s*/g, "").replace(/[:.,!?]+$/, "").trim());
   const unknown = quoted.find((q) => q.length >= 4 && !haystack.includes(normalizeSearch(q)));
   if (unknown) return `cụm "${unknown}" không có trong dữ liệu`;
+
+  // Năm (4 chữ số) phải có trong ngữ cảnh hoặc câu hỏi: không tự nêu năm sinh / năm xuất bản
+  const yearsOf = (t: string) => new Set(t.match(/\b(1[0-9]{3}|20[0-9]{2})\b/g) ?? []);
+  const allowedYears = new Set([...yearsOf(contextText), ...yearsOf(question)]);
+  const badYear = [...yearsOf(answer)].find((y) => !allowedYears.has(y));
+  if (badYear) return `năm ${badYear} không có trong dữ liệu`;
 
   return null;
 }
@@ -500,7 +568,7 @@ export async function answerQuestion(env: Env, question: string, history: ChatTu
   }
 
   const r = await retrieve(env, question, history, user);
-  const hasData = r.books.length > 0 || r.policies.length > 0 || r.orders !== null || r.orderNeedsLogin;
+  const hasData = r.books.length > 0 || r.authors.length > 0 || r.policies.length > 0 || r.orders !== null || r.orderNeedsLogin;
 
   // Lớp 1: không có dữ liệu liên quan → không gọi LLM
   if (!hasData) {
@@ -533,6 +601,12 @@ export async function answerQuestion(env: Env, question: string, history: ChatTu
     console.warn(`[ai] Bỏ câu trả lời của LLM (${problem}). Câu hỏi: ${question}`);
     return { answer: templateAnswer(r), books: r.books.map((b) => b.id), grounded: true };
   }
+
+  // Lớp 3a: bỏ câu "chưa có thông tin về năm mất": sai khi dữ liệu có năm mất, thừa với tác giả còn sống
+  raw = raw
+    .split("\n")
+    .map((line) => line.split(/(?<=[.!?])\s+/).filter((s) => !/(chưa|không) có thông tin[^.!?\n]{0,40}năm mất/i.test(s)).join(" "))
+    .join("\n");
 
   // Lớp 3b: cắt câu khen "bán chạy / được yêu thích" không có số liệu
   const cleaned = dropUnsupportedPopularity(raw, ctx.text, r.books);

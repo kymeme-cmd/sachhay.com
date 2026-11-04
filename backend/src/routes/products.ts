@@ -44,8 +44,15 @@ productRoutes.get("/:id", async (c) => {
     return c.json({ error: { code: "NOT_FOUND", message: "Sản phẩm không tồn tại" } }, 404);
   }
   const [withImages] = await attachImages(c.env.DB, [product]);
-  const category = product.category_id ? await findCategoryById(c.env.DB, product.category_id) : null;
-  return c.json({ data: { ...withImages, category } });
+  const [category, author_info] = await Promise.all([
+    product.category_id ? findCategoryById(c.env.DB, product.category_id) : null,
+    product.author
+      ? c.env.DB.prepare(
+          `SELECT name, nationality, born_year, died_year, bio, notable_works, source FROM authors WHERE name = ?`
+        ).bind(product.author).first()
+      : null,
+  ]);
+  return c.json({ data: { ...withImages, category, author_info } });
 });
 
 // ---------- Create (admin) ----------

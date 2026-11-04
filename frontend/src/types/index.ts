@@ -53,6 +53,17 @@ export interface Product {
   category?: Category | null;
   avg_rating?: number | null;
   review_count?: number;
+  author_info?: AuthorInfo | null; // chỉ có ở API chi tiết sách
+}
+
+export interface AuthorInfo {
+  name: string;
+  nationality?: string | null;
+  born_year?: number | null;
+  died_year?: number | null;
+  bio?: string | null;
+  notable_works?: string | null;
+  source?: string | null;
 }
 
 export interface Review {

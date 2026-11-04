@@ -112,8 +112,8 @@ export default function Admin() {
     setAiSyncResult(null);
     try {
       const res = await adminAPI.syncAI();
-      const d = res.data as { books: number; policies: number; removed: number };
-      setAiSyncResult({ ok: true, text: `Đã nạp ${d.books} sách và ${d.policies} mục chính sách${d.removed ? `, gỡ ${d.removed} sách đã ẩn` : ""}.` });
+      const d = res.data as { books: number; policies: number; authors?: number; removed: number };
+      setAiSyncResult({ ok: true, text: `Đã nạp ${d.books} sách, ${d.authors ?? 0} tác giả và ${d.policies} mục chính sách${d.removed ? `, gỡ ${d.removed} sách đã ẩn` : ""}.` });
     } catch (err: any) {
       setAiSyncResult({ ok: false, text: err.response?.data?.message || "Không thể đồng bộ dữ liệu AI" });
     } finally {

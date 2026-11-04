@@ -11,6 +11,7 @@ import { fallbackImageUrl, getProductImageUrl } from "@/utils/image";
 import { StarRating } from "@/components/book/StarRating";
 import { ReviewSection } from "@/components/book/ReviewSection";
 import { RecentlyViewed } from "@/components/book/RecentlyViewed";
+import { AuthorInfoCard } from "@/components/book/AuthorInfoCard";
 import { BookOpen, Mail, Phone, ChevronLeft } from "lucide-react";
 import { Loading } from "@/components/common/Loading";
 import { Alert } from "@/components/common/Alert";
@@ -166,6 +167,8 @@ export default function BookDetail() {
         </div>
       </div>
       </div>
+
+      {product.author_info && <AuthorInfoCard author={product.author_info} />}
 
       <ReviewSection productId={product.id} onSummaryChange={handleSummaryChange} />
 
