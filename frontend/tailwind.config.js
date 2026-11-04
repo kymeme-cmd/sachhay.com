@@ -13,7 +13,9 @@ export default {
         paper: "#f7f2e8", // nền kem như trang giấy
         light: "#fbf8f2",
         dark: "#231912",
-        gray: colors.stone, // xám ấm thay xám lạnh
+        // Xám ấm (stone); 400/500 đậm hơn để đạt độ tương phản WCAG trên nền kem:
+        // 500 #665e57 = 5.7:1 (chữ phụ, ≥ 4.5:1), 400 #8a817a = 3.4:1 (icon / placeholder, ≥ 3:1)
+        gray: { ...colors.stone, 400: "#8a817a", 500: "#665e57" },
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

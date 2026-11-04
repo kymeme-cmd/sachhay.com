@@ -7,7 +7,8 @@ import { formatCurrency } from "@/utils/formatCurrency";
 import { getProductImageUrl } from "@/utils/image";
 import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS, shortOrderId } from "@/utils/order";
 import type { OrderStatusValue } from "@/types";
-import { LayoutDashboard, Users, ShoppingCart, Package, Plus, Edit, Trash2, X, BookOpen, Bot, RefreshCw } from "lucide-react";
+import { LayoutDashboard, Users, ShoppingCart, Package, Plus, Edit, Trash2, X, BookOpen, Bot, RefreshCw, Search, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { LOW_STOCK_THRESHOLD } from "@/components/book/BookCard";
 import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Alert } from "@/components/common/Alert";
@@ -48,6 +49,8 @@ const initialCategoryForm: CategoryForm = {
   parent_id: "",
 };
 
+const PRODUCTS_PER_PAGE = 20;
+
 export default function Admin() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,12 @@ export default function Admin() {
   const [orders, setOrders] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+
+  // Bảng sách: tìm kiếm, lọc thể loại, chỉ sách sắp hết, phân trang
+  const [productQuery, setProductQuery] = useState("");
+  const [productCategory, setProductCategory] = useState("");
+  const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [productPage, setProductPage] = useState(1);
 
   // Product modal state
   const [showProductModal, setShowProductModal] = useState(false);
@@ -196,10 +205,10 @@ export default function Admin() {
     }
   };
 
-  const deleteProduct = async (id: string) => {
-    if (!window.confirm("Bạn có chắc muốn xóa sản phẩm này?")) return;
+  const deleteProduct = async (p: { id: string; name: string }) => {
+    if (!window.confirm(`Xóa sách "${p.name}"?\n\nThao tác này không thể hoàn tác. (Sách đã có đơn hàng sẽ chỉ bị ẩn khỏi cửa hàng.)`)) return;
     try {
-      await adminAPI.deleteProduct(id);
+      await adminAPI.deleteProduct(p.id);
       await fetchAll(); // sách đã có đơn hàng chỉ bị ẩn, không bị xóa
     } catch (err: any) {
       setError(err.response?.data?.message || "Xóa thất bại");
@@ -272,11 +281,11 @@ export default function Admin() {
     }
   };
 
-  const deleteCategory = async (id: string) => {
-    if (!window.confirm("Bạn có chắc muốn xóa danh mục này?")) return;
+  const deleteCategory = async (c: { id: string; name: string }) => {
+    if (!window.confirm(`Xóa danh mục "${c.name}"?\n\nThao tác này không thể hoàn tác.`)) return;
     try {
-      await adminAPI.deleteCategory(id);
-      setCategories((prev) => prev.filter((c) => c.id !== id));
+      await adminAPI.deleteCategory(c.id);
+      setCategories((prev) => prev.filter((x) => x.id !== c.id));
     } catch (err: any) {
       setError(err.response?.data?.message || "Xóa thất bại");
     }
@@ -289,6 +298,17 @@ export default function Admin() {
     { id: "orders", label: "Đơn hàng", icon: <ShoppingCart size={20} /> },
     { id: "users", label: "Người dùng", icon: <Users size={20} /> },
   ];
+
+  const normalize = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[đĐ]/g, "d").toLowerCase();
+  const filteredProducts = products.filter((p: any) =>
+    (!productQuery.trim() || normalize(`${p.name} ${p.author ?? ""} ${p.sku ?? ""}`).includes(normalize(productQuery.trim()))) &&
+    (!productCategory || p.category_id === productCategory) &&
+    (!lowStockOnly || p.stock < LOW_STOCK_THRESHOLD)
+  );
+  const lowStockCount = products.filter((p: any) => p.stock < LOW_STOCK_THRESHOLD).length;
+  const productPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
+  const currentProductPage = Math.min(productPage, productPages);
+  const pagedProducts = filteredProducts.slice((currentProductPage - 1) * PRODUCTS_PER_PAGE, currentProductPage * PRODUCTS_PER_PAGE);
 
   if (loading) return <Loading text="Đang tải trang quản trị..." />;
 
@@ -330,7 +350,7 @@ export default function Admin() {
                 {orders.slice(0, 5).map((o: any) => (
                   <div key={o.id} className="flex justify-between items-center p-3 rounded-xl bg-gray-50">
                     <div><div className="font-medium text-gray-800">Đơn #{o.id.slice(0, 8)}</div><div className="text-sm text-gray-500">{new Date(o.created_at * 1000).toLocaleDateString("vi-VN")}</div></div>
-                    <div className="text-right"><div className="font-bold text-gray-800">{formatCurrency(o.total_amount)}</div><div className="text-xs text-gray-500 capitalize">{o.status}</div></div>
+                    <div className="text-right"><div className="font-bold text-gray-800">{formatCurrency(o.total_amount)}</div><span className={`badge mt-1 ${ORDER_STATUS_COLORS[o.status as OrderStatusValue]}`}>{ORDER_STATUS_LABELS[o.status as OrderStatusValue]}</span></div>
                   </div>
                 ))}
               </div>
@@ -353,53 +373,114 @@ export default function Admin() {
       )}
 
       {activeTab === "products" && (
-        <div className="">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-semibold text-gray-800">Quản lý sách</h3>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="font-semibold text-gray-800">Quản lý sách <span className="text-gray-500 font-normal">({filteredProducts.length}/{products.length})</span></h3>
             <Button onClick={openCreateModal}><Plus size={18} /> Thêm sách mới</Button>
           </div>
+
+          {/* Thanh công cụ: tìm kiếm, lọc thể loại, sách sắp hết */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                type="search"
+                value={productQuery}
+                onChange={(e) => { setProductQuery(e.target.value); setProductPage(1); }}
+                placeholder="Tìm theo tên sách, tác giả, SKU..."
+                aria-label="Tìm sách trong bảng"
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-300 bg-white text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
+              />
+            </div>
+            <select
+              value={productCategory}
+              onChange={(e) => { setProductCategory(e.target.value); setProductPage(1); }}
+              aria-label="Lọc theo thể loại"
+              className="px-3 py-2 rounded-xl border border-gray-300 bg-white text-sm focus:ring-2 focus:ring-primary/40"
+            >
+              <option value="">Tất cả thể loại</option>
+              {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={() => { setLowStockOnly((v) => !v); setProductPage(1); }}
+              aria-pressed={lowStockOnly}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                lowStockOnly ? "bg-amber-100 border-amber-400 text-amber-800" : "bg-white border-gray-300 text-gray-700 hover:border-amber-400"
+              }`}
+            >
+              <AlertTriangle size={16} /> Sắp hết hàng ({lowStockCount})
+            </button>
+          </div>
+
           <div className="card overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="px-4 py-3 text-sm font-semibold text-gray-600">Tên sách</th>
-                  <th className="px-4 py-3 text-sm font-semibold text-gray-600">Giá</th>
-                  <th className="px-4 py-3 text-sm font-semibold text-gray-600">Tồn kho</th>
-                  <th className="px-4 py-3 text-sm font-semibold text-gray-600">Trạng thái</th>
-                  <th className="px-4 py-3 text-sm font-semibold text-gray-600">Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">Chưa có sách nào</td></tr>
-                ) : (
-                  products.map((p: any) => (
-                    <tr key={p.id} className="border-b border-gray-100">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <img src={getProductImageUrl(p.image_key)} alt="" className="w-10 h-14 rounded object-cover bg-gray-100 flex-shrink-0" />
-                          <div>
-                            <div>{p.name}</div>
-                            {p.category_name && <div className="text-xs text-gray-500">{p.category_name}</div>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">{formatCurrency(p.price)}</td>
-                      <td className="px-4 py-3">{p.stock}</td>
-                      <td className="px-4 py-3"><span className={`badge ${p.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>{p.is_active ? "Đang bán" : "Đã ẩn"}</span></td>
-                      <td className="px-4 py-3">
-                        <Button variant="outline" size="sm" className="mr-2" onClick={() => openEditModal(p)}>
-                          <Edit size={16} /> Chỉnh sửa
-                        </Button>
-                        <Button variant="danger" size="sm" onClick={() => deleteProduct(p.id)}>
-                          <Trash2 size={16} /> Xóa
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            {/* Cuộn trong khung, tiêu đề cột dính khi cuộn */}
+            <div className="max-h-[70vh] overflow-auto">
+              <table className="w-full text-left">
+                <thead className="sticky top-0 z-10 bg-light shadow-[0_1px_0_0] shadow-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-sm font-semibold text-gray-600">Tên sách</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-gray-600">Giá</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-gray-600">Tồn kho</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-gray-600">Trạng thái</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-gray-600 text-right">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedProducts.length === 0 ? (
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">{products.length === 0 ? "Chưa có sách nào" : "Không có sách nào khớp bộ lọc"}</td></tr>
+                  ) : (
+                    pagedProducts.map((p: any) => {
+                      const low = p.stock < LOW_STOCK_THRESHOLD;
+                      return (
+                        <tr key={p.id} className={`border-b border-gray-100 ${low ? "bg-amber-50/60" : ""}`}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <img src={getProductImageUrl(p.image_key)} alt={p.name} loading="lazy" className="w-10 h-14 rounded object-cover bg-gray-100 flex-shrink-0" />
+                              <div>
+                                <div className="font-medium text-gray-800">{p.name}</div>
+                                <div className="text-xs text-gray-500">{[p.author, p.category_name].filter(Boolean).join(" · ")}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">{formatCurrency(p.price)}</td>
+                          <td className="px-4 py-3">
+                            {p.stock <= 0 ? (
+                              <span className="badge bg-red-100 text-red-700">Hết hàng</span>
+                            ) : low ? (
+                              <span className="inline-flex items-center gap-1 font-semibold text-amber-700"><AlertTriangle size={14} /> {p.stock}</span>
+                            ) : (
+                              p.stock
+                            )}
+                          </td>
+                          <td className="px-4 py-3"><span className={`badge ${p.is_active ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-700"}`}>{p.is_active ? "Đang bán" : "Đã ẩn"}</span></td>
+                          <td className="px-4 py-3">
+                            {/* Xóa: icon viền, đặt xa nút sửa, luôn hỏi xác nhận kèm tên sách */}
+                            <div className="flex items-center justify-end gap-6">
+                              <Button variant="outline" size="sm" onClick={() => openEditModal(p)}>
+                                <Edit size={16} /> Chỉnh sửa
+                              </Button>
+                              <Button variant="danger-outline" size="sm" onClick={() => deleteProduct(p)} aria-label={`Xóa sách ${p.name}`} title="Xóa sách">
+                                <Trash2 size={16} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {productPages > 1 && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 text-sm">
+                <span className="text-gray-600">Trang {currentProductPage}/{productPages}</span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={currentProductPage <= 1} onClick={() => setProductPage(currentProductPage - 1)} aria-label="Trang trước"><ChevronLeft size={16} /></Button>
+                  <Button variant="outline" size="sm" disabled={currentProductPage >= productPages} onClick={() => setProductPage(currentProductPage + 1)} aria-label="Trang sau"><ChevronRight size={16} /></Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -432,12 +513,14 @@ export default function Admin() {
                       <td className="px-4 py-3 text-xs text-gray-500">{c.parent_id ? `Thuộc: ${categories.find((x: any) => x.id === c.parent_id)?.name ?? "?"}` : "Danh mục gốc"}</td>
                       <td className="px-4 py-3">{c.product_count ?? 0}</td>
                       <td className="px-4 py-3">
-                        <Button variant="outline" size="sm" className="mr-2" onClick={() => openEditCategoryModal(c)}>
-                          <Edit size={16} /> Chỉnh sửa
-                        </Button>
-                        <Button variant="danger" size="sm" onClick={() => deleteCategory(c.id)}>
-                          <Trash2 size={16} /> Xóa
-                        </Button>
+                        <div className="flex items-center gap-6">
+                          <Button variant="outline" size="sm" onClick={() => openEditCategoryModal(c)}>
+                            <Edit size={16} /> Chỉnh sửa
+                          </Button>
+                          <Button variant="danger-outline" size="sm" onClick={() => deleteCategory(c)} aria-label={`Xóa danh mục ${c.name}`} title="Xóa danh mục">
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))

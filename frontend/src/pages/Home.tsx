@@ -3,16 +3,16 @@
 // ============================================================
 
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { productAPI } from "@/api/client";
 import type { Product } from "@/types";
-import { BookOpen, Truck, Tag, ShieldCheck, Sparkles, ShoppingCart } from "lucide-react";
+import { BookOpen, Truck, Tag, ShieldCheck, Sparkles } from "lucide-react";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { getProductImageUrl } from "@/utils/image";
 import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Alert } from "@/components/common/Alert";
-import { useCart } from "@/hooks/useCart";
+import { SearchBox } from "@/components/book/SearchBox";
 import { RecentlyViewed } from "@/components/book/RecentlyViewed";
 import { RatingLine } from "@/components/book/StarRating";
 
@@ -21,7 +21,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalBooks, setTotalBooks] = useState(0);
-  const { itemCount } = useCart();
+  const [search, setSearch] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
     productAPI
@@ -71,12 +72,11 @@ export default function Home() {
             <p className="text-lg md:text-xl text-gray-200 mb-8">
               Tuyển chọn sách hay, giá cả phải chăng, giao hàng nhanh chóng đến tận tay bạn.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link to="/books" className="inline-flex items-center justify-center gap-2 bg-amber-400 text-dark px-7 py-3 rounded-xl font-bold shadow-lg shadow-amber-900/30 hover:bg-amber-300 hover:-translate-y-0.5 transition-all w-full sm:w-auto">
+            {/* Tìm kiếm là hành động số 1 của khách → ô tìm kiếm lớn ngay trên banner */}
+            <div className="flex flex-col sm:flex-row gap-3 max-w-xl text-gray-900">
+              <SearchBox value={search} onChange={setSearch} onSubmit={(q) => q.trim() && navigate(`/books?search=${encodeURIComponent(q.trim())}`)} />
+              <Link to="/books" className="inline-flex items-center justify-center gap-2 bg-amber-400 text-dark px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-amber-900/30 hover:bg-amber-300 hover:-translate-y-0.5 transition-all whitespace-nowrap">
                 <BookOpen size={20} /> Xem tất cả sách
-              </Link>
-              <Link to="/cart" className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl font-semibold border-2 border-paper/70 text-white hover:bg-white/10 transition-colors w-full sm:w-auto">
-                <ShoppingCart size={20} /> Giỏ hàng ({itemCount || 0})
               </Link>
             </div>
             <div className="flex flex-wrap gap-x-8 gap-y-3 mt-8 pt-6 border-t border-white/15 text-sm">

@@ -3,7 +3,7 @@
 import React from "react";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "outline" | "ghost" | "danger" | "danger-outline";
   size?: "sm" | "md" | "lg";
   isLoading?: boolean;
 }
@@ -14,6 +14,8 @@ const variants: Record<string, string> = {
   outline: "border-2 border-primary text-primary hover:bg-primary hover:text-white focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:pointer-events-none",
   ghost: "text-primary hover:bg-gray-100 focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:pointer-events-none",
   danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-2 focus:ring-offset-2 focus:ring-red-600 disabled:opacity-50 disabled:pointer-events-none",
+  // Thao tác nguy hiểm dạng viền: khó bấm nhầm hơn nút đỏ đặc
+  "danger-outline": "border border-red-300 text-red-700 hover:bg-red-50 hover:border-red-500 focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:pointer-events-none",
 };
 
 const sizes: Record<string, string> = {
@@ -27,7 +29,7 @@ export function Button({ className, variant = "primary", size = "md", isLoading,
     <button
       {...props}
       className={[
-        "inline-flex items-center justify-center rounded-xl font-medium transition-all duration-200",
+        "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-200", // gap-2 (8px): icon không dính sát chữ
         variants[variant],
         sizes[size],
         className,
@@ -36,7 +38,7 @@ export function Button({ className, variant = "primary", size = "md", isLoading,
     >
       {isLoading && (
         <svg
-          className="animate-spin -ml-1 mr-2 h-4 w-4"
+          className="animate-spin -ml-1 h-4 w-4"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"

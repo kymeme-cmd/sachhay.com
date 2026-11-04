@@ -20,9 +20,11 @@ interface SearchBoxProps {
   onChange: (value: string) => void;
   /** Gửi tìm kiếm đầy đủ (Enter / nút Tìm kiếm / "Xem tất cả kết quả") */
   onSubmit: (value: string) => void;
+  /** Kiểu gọn để đặt trên thanh menu */
+  compact?: boolean;
 }
 
-export function SearchBox({ value, onChange, onSubmit }: SearchBoxProps) {
+export function SearchBox({ value, onChange, onSubmit, compact = false }: SearchBoxProps) {
   const navigate = useNavigate();
   const listId = useId();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -96,17 +98,18 @@ export function SearchBox({ value, onChange, onSubmit }: SearchBoxProps) {
 
   return (
     <div ref={wrapperRef} className="relative flex-1">
-      <Search size={18} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
+      <Search size={compact ? 16 : 18} className={`absolute left-3 ${compact ? "top-2.5" : "top-3"} text-gray-400 pointer-events-none`} />
       <input
         type="text"
         role="combobox"
         aria-expanded={showDropdown}
         aria-controls={listId}
         aria-autocomplete="list"
+        aria-label="Tìm theo tên sách, tác giả"
         aria-activedescendant={highlight >= 0 ? `${listId}-${highlight}` : undefined}
         autoComplete="off"
         placeholder="Tìm theo tên sách, tác giả..."
-        className="input-field pl-10 pr-9"
+        className={compact ? "w-full pl-9 pr-8 py-2 text-sm rounded-full border border-gray-300 bg-white focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all" : "input-field pl-10 pr-9"}
         value={value}
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
@@ -116,10 +119,10 @@ export function SearchBox({ value, onChange, onSubmit }: SearchBoxProps) {
         <button
           type="button"
           onClick={() => { onChange(""); onSubmit(""); setOpen(false); }}
-          className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+          className={`absolute right-3 ${compact ? "top-2.5" : "top-3"} text-gray-400 hover:text-gray-600`}
           aria-label="Xóa từ khóa"
         >
-          <X size={18} />
+          <X size={compact ? 16 : 18} />
         </button>
       )}
 
