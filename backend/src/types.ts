@@ -221,7 +221,7 @@ export interface OrderCreateRequest {
     phone: string;
     address: string;
     city: string;
-    district: string;
+    district?: string;
     ward: string;
     note?: string;
   };

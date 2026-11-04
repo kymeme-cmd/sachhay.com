@@ -137,7 +137,7 @@ export interface ShippingAddress {
   phone: string;
   address: string;
   city: string;
-  district: string;
+  district?: string; // bỏ từ 07/2025 (không còn cấp quận/huyện); đơn cũ vẫn có
   ward: string;
   note?: string;
 }

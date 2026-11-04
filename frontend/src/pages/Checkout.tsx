@@ -27,7 +27,6 @@ export default function Checkout() {
     phone: user?.phone || "",
     address: "",
     city: "",
-    district: "",
     ward: "",
     note: "",
   });
@@ -37,7 +36,7 @@ export default function Checkout() {
   };
 
   // Validate required fields before submit
-  const isValid = (["name", "phone", "address", "city", "district", "ward"] as const).every(
+  const isValid = (["name", "phone", "address", "city", "ward"] as const).every(
     (field) => shippingAddress[field].trim() !== ""
   );
 
@@ -114,13 +113,6 @@ export default function Checkout() {
                 value={shippingAddress.city}
                 onChange={(e) => handleAddressChange("city", e.target.value)}
                 placeholder="Ví dụ: Hồ Chí Minh, Hà Nội"
-                required
-              />
-              <Input
-                label="Quận / Hủyện"
-                value={shippingAddress.district}
-                onChange={(e) => handleAddressChange("district", e.target.value)}
-                placeholder="Ví dụ: Quận 1, Ba Đình"
                 required
               />
               <Input

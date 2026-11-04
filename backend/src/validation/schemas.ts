@@ -111,7 +111,7 @@ export const OrderCreateSchema = z.object({
     phone: z.string().min(1),
     address: z.string().min(1),
     city: z.string().min(1),
-    district: z.string().min(1),
+    district: z.string().optional(), // không còn cấp quận/huyện từ 07/2025; đơn cũ vẫn có
     ward: z.string().min(1),
     note: z.string().optional(),
   }),

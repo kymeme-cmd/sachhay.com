@@ -245,7 +245,7 @@ export const orderAPI = {
   get: (id: string) => api.get(`/orders/${id}`),
   create: (data: {
     items: Array<{ product_id: string; quantity: number }>;
-    shipping_address: { name: string; phone: string; address: string; city: string; district: string; ward: string; note?: string };
+    shipping_address: { name: string; phone: string; address: string; city: string; district?: string; ward: string; note?: string };
     shipping_method: string;
     payment_method: "cod" | "bank_transfer" | "credit_card";
     note?: string;
