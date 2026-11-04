@@ -16,6 +16,8 @@ describe("parsePriceRange", () => {
     expect(parse("50000 mua duoc quyen sach nao")).toEqual({ max: 50_000 });
     expect(parse("có 100k thì mua gì")).toEqual({ max: 100_000 });
     expect(parse("tầm 80 nghìn có sách nào hay")).toEqual({ max: 80_000 });
+    expect(parse("50000 thi sao")).toEqual({ max: 50_000 });
+    expect(parse("50k")).toEqual({ max: 50_000 });
   });
 
   it("không coi năm / số tập là tiền", () => {

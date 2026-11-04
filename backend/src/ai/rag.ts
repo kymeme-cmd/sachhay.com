@@ -220,18 +220,14 @@ export function parsePriceRange(nq: string): { min?: number; max?: number } {
   if (min) out.min = toVnd(min[2], min[3]);
   if (out.min !== undefined || out.max !== undefined) return out;
 
-  // Ngân sách: "50000 mua được quyển nào", "có 100k thì mua gì", "tầm 80 nghìn" → giá tối đa
-  if (BUDGET_CONTEXT.test(nq)) {
-    for (const m of nq.matchAll(new RegExp(num, "g"))) {
-      const value = toVnd(m[1], m[2]);
-      // Số trần không đơn vị dưới 10.000 thường là năm/tập ("năm 1997"), không phải tiền
-      if (value !== undefined && (m[2] || value >= 10_000)) return { max: value };
-    }
+  // Chỉ nêu số tiền ("50000 thì sao", "có 100k thì mua gì", "tầm 80 nghìn") → coi là ngân sách tối đa
+  for (const m of nq.matchAll(new RegExp(num, "g"))) {
+    const value = toVnd(m[1], m[2]);
+    // Số trần không đơn vị dưới 10.000 thường là năm/tập ("năm 1997"), không phải tiền
+    if (value !== undefined && (m[2] || value >= 10_000)) return { max: value };
   }
   return out;
 }
-
-const BUDGET_CONTEXT = /\b(mua|co|voi|chi|tam|khoang|ngan sach|budget|du tien|tien)\b/;
 
 // ---------- Truy xuất ----------
 
