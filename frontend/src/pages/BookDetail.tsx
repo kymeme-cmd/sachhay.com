@@ -93,6 +93,12 @@ export default function BookDetail() {
               <div className="w-full h-full flex items-center justify-center text-gray-400"><BookOpen size={64} /></div>
             )}
           </div>
+          {/* Ảnh bìa thật (.jpg, migration 0009) lấy từ Open Library → ghi nguồn; bìa tự tạo là .png */}
+          {product.images?.[0]?.r2_key.endsWith(".jpg") && (
+            <p className="mt-2 text-center text-xs text-gray-400">
+              Ảnh bìa: <a href="https://openlibrary.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Open Library</a>
+            </p>
+          )}
         </div>
 
         {/* Info */}
