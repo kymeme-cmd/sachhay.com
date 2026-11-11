@@ -90,7 +90,7 @@ export function ChatWidget() {
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Mở trợ lý AI"
-          className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-primary text-white pl-4 pr-5 py-3.5 shadow-xl shadow-primary/30 hover:bg-secondary hover:-translate-y-0.5 transition-all"
+          className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-primary text-white pl-4 pr-5 py-3.5 ring-2 ring-amber-300/70 shadow-xl shadow-primary/30 hover:bg-secondary hover:-translate-y-0.5 transition-all"
         >
           <MessageCircle size={22} className="text-amber-300" />
           <span className="font-semibold text-sm hidden sm:inline">Hỏi trợ lý AI</span>
