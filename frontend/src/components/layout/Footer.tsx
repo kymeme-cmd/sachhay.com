@@ -19,7 +19,7 @@ const SOCIAL_LINKS = [
   { label: "YouTube", href: "https://www.youtube.com/", color: "bg-[#FF0000]", icon: <Youtube size={20} /> },
   {
     label: "TikTok",
-    href: "https://www.tiktok.com/",
+    href: "https://www.tiktok.com/@newijzzgoao",
     color: "bg-black ring-1 ring-white/20",
     icon: (
       <svg viewBox="0 0 24 24" width={20} height={20} fill="currentColor" aria-hidden="true">
