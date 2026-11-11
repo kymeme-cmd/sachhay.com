@@ -76,6 +76,8 @@ ENVIRONMENT = "production"
 JWT_EXPIRES_IN = "15m"
 REFRESH_TOKEN_EXPIRES_IN = "7d"
 CORS_ORIGINS = "https://sachhay-com.pages.dev"
+# Basin catalog stream: thống kê lượt truy cập (POST /api/track). Salt băm IP: wrangler secret put IP_SALT --env production
+STREAM_URL = "https://f8fb6f6f730b404fb2f273fd789d04df.ingest.cloudflare.com"
 
 [[env.production.d1_databases]]
 binding = "DB"

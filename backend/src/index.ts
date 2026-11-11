@@ -15,6 +15,7 @@ import { cartRoutes } from "./routes/cart";
 import { orderRoutes } from "./routes/orders";
 import { adminRoutes } from "./routes/admin";
 import { uploadRoutes, imageRoutes } from "./routes/upload";
+import { trackRoutes } from "./routes/track";
 import { deleteExpiredSessions } from "./db/client";
 import type { AppEnv } from "./middleware/auth";
 import type { Env } from "./types";
@@ -53,6 +54,7 @@ api.route("/chat", chatRoutes);             // chatbot RAG: public, rate-limited
 api.route("/admin", adminRoutes);           // admin role required
 api.route("/upload", uploadRoutes);         // R2 upload, admin required
 api.route("/images", imageRoutes);          // R2 public read
+api.route("/track", trackRoutes);           // ghi lượt truy cập → Basin catalog
 
 // ---------- 404 ----------
 app.notFound((c) => {

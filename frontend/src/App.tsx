@@ -9,6 +9,35 @@ import { PageLoading } from "@/components/common/Loading";
 import { useAuthStore } from "@/store/auth";
 import { useAuth } from "@/hooks/useAuth";
 import { getRedirectTarget } from "@/utils/redirect";
+import { API_BASE } from "@/api/client";
+
+/** Mã phiên: giữ trong tab đang mở, đóng tab là phiên mới */
+function getSessionId(): string {
+  try {
+    let sid = sessionStorage.getItem("sid");
+    if (!sid) {
+      sid = crypto.randomUUID();
+      sessionStorage.setItem("sid", sid);
+    }
+    return sid;
+  } catch {
+    return "";
+  }
+}
+
+/** Ghi nhận 1 lượt xem trang (gửi lên Basin catalog qua /api/track) */
+function useTrackPageView() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    try {
+      const payload = JSON.stringify({ path: pathname, referrer: document.referrer, session_id: getSessionId() });
+      // text/plain để không phát sinh preflight CORS; sendBeacon không làm chậm trang
+      navigator.sendBeacon?.(`${API_BASE}/track`, new Blob([payload], { type: "text/plain" }));
+    } catch {
+      /* thống kê lỗi không được ảnh hưởng người dùng */
+    }
+  }, [pathname]);
+}
 
 // Lazy load pages
 const Home = React.lazy(() => import("@/pages/Home"));
@@ -51,6 +80,7 @@ function GuestRoute({ children }: { children: React.ReactElement }) {
 
 export default function App() {
   const { fetchMe } = useAuth();
+  useTrackPageView();
 
   // Khôi phục phiên đăng nhập khi tải lại trang (xác minh token với server)
   useEffect(() => {

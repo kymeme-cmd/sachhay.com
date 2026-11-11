@@ -21,6 +21,8 @@ export interface Env {
   REFRESH_SECRET: string;
   REFRESH_TOKEN_EXPIRES_IN: string;
   CORS_ORIGINS?: string;
+  STREAM_URL?: string; // Basin catalog stream endpoint (thống kê lượt truy cập)
+  IP_SALT?: string; // salt băm IP trước khi gửi lên stream (secret)
 }
 
 export interface PaginationMeta {
