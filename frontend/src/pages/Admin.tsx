@@ -5,8 +5,8 @@ import { Link } from "react-router-dom";
 import { adminAPI, productAPI, uploadAPI } from "@/api/client";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { getProductImageUrl } from "@/utils/image";
-import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS, shortOrderId } from "@/utils/order";
-import type { OrderStatusValue } from "@/types";
+import { ORDER_STATUS_COLORS, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS, SHIPPING_METHOD_LABELS, formatAddress, shortOrderId } from "@/utils/order";
+import type { Order, OrderStatusValue } from "@/types";
 import { LayoutDashboard, Users, ShoppingCart, Package, Plus, Edit, Trash2, X, BookOpen, Bot, RefreshCw, Search, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { LOW_STOCK_THRESHOLD } from "@/components/book/BookCard";
 import { Loading } from "@/components/common/Loading";
@@ -50,6 +50,34 @@ const initialCategoryForm: CategoryForm = {
 };
 
 const PRODUCTS_PER_PAGE = 20;
+
+/** Người nhận, SĐT, địa chỉ giao, cách giao / thanh toán và ghi chú của một đơn */
+function ShippingInfo({ order }: { order: Order }) {
+  const addr = typeof order.shipping_address === "string" ? null : order.shipping_address;
+  const note = addr?.note || order.note;
+  return (
+    <div className="text-sm space-y-0.5">
+      {addr && (
+        <div className="font-medium text-gray-800">
+          {addr.name}
+          {addr.phone && (
+            <>
+              {" · "}
+              <a href={`tel:${addr.phone}`} className="text-accent hover:underline">{addr.phone}</a>
+            </>
+          )}
+        </div>
+      )}
+      <div className="text-gray-600">{formatAddress(order.shipping_address) || "Không có địa chỉ"}</div>
+      <div className="text-xs text-gray-500">
+        {[order.shipping_method ? SHIPPING_METHOD_LABELS[order.shipping_method] ?? order.shipping_method : "", PAYMENT_METHOD_LABELS[order.payment_method] ?? order.payment_method]
+          .filter(Boolean)
+          .join(" · ")}
+      </div>
+      {note && <div className="text-xs text-gray-500 italic">Ghi chú: {note}</div>}
+    </div>
+  );
+}
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -537,12 +565,13 @@ export default function Admin() {
           {orders.length === 0 ? (
             <EmptyState title="Chưa có đơn hàng" description="Chưa có đơn hàng nào được đặt." />
           ) : (
-            <div className="card overflow-hidden">
+            <div className="card overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="px-4 py-3 text-sm font-semibold text-gray-600">Mã đơn</th>
                     <th className="px-4 py-3 text-sm font-semibold text-gray-600">Khách hàng</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-gray-600">Giao đến</th>
                     <th className="px-4 py-3 text-sm font-semibold text-gray-600">Tổng tiền</th>
                     <th className="px-4 py-3 text-sm font-semibold text-gray-600">Trạng thái</th>
                     <th className="px-4 py-3 text-sm font-semibold text-gray-600">Ngày đặt</th>
@@ -558,6 +587,9 @@ export default function Admin() {
                       <td className="px-4 py-3">
                         <div>{o.name}</div>
                         <div className="text-xs text-gray-500">{o.email}</div>
+                      </td>
+                      <td className="px-4 py-3 min-w-[240px] max-w-[320px] align-top">
+                        <ShippingInfo order={o} />
                       </td>
                       <td className="px-4 py-3">{formatCurrency(o.total_amount)}</td>
                       <td className="px-4 py-3">
