@@ -23,6 +23,7 @@ export interface Env {
   CORS_ORIGINS?: string;
   STREAM_URL?: string; // Basin catalog stream endpoint (thống kê lượt truy cập)
   IP_SALT?: string; // salt băm IP trước khi gửi lên stream (secret)
+  TRACK_GROUP?: string; // giá trị trường "id" gửi lên stream (tên nhóm)
 }
 
 export interface PaginationMeta {

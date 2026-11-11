@@ -41,12 +41,13 @@ trackRoutes.post("/", async (c) => {
   const ua = c.req.header("User-Agent") ?? "";
   const cf = c.req.raw.cf as { country?: string } | undefined;
   const record = {
-    id: crypto.randomUUID(),
+    id: c.env.TRACK_GROUP ?? "nhóm 13", // tên nhóm: nhận biết dữ liệu của nhóm trên stream dùng chung
     country: cf?.country ?? "XX", // Cloudflare tự xác định quốc gia theo IP
     device: detectDevice(ua),
     time: Date.now(), // giờ server (ms), không tin giờ máy khách
     ip: await hashIp(c.req.header("CF-Connecting-IP") ?? "", c.env.IP_SALT ?? c.env.JWT_SECRET),
     meta: {
+      event_id: crypto.randomUUID(), // mã riêng của từng lượt truy cập
       path: clip(body.path, 200),
       referrer: clip(body.referrer, 300),
       session_id: clip(body.session_id, 64),
