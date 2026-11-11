@@ -4,7 +4,7 @@
 
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { listProducts, findProductById, findCategoryById, createProductImage, attachImages } from "../db/client";
+import { listProducts, findProductById, findCategoryById, createProductImage, findImagesByProduct } from "../db/client";
 import {
   ProductCreateSchema,
   ProductUpdateSchema,
@@ -39,11 +39,15 @@ productRoutes.get("/", validate("query", ProductListQuerySchema), async (c) => {
 // ---------- Get (public) ----------
 productRoutes.get("/:id", async (c) => {
   const { id } = c.req.param();
-  const product = await findProductById(c.env.DB, id);
+  // Sản phẩm và ảnh lấy song song (ảnh chỉ cần id)
+  const [product, images] = await Promise.all([
+    findProductById(c.env.DB, id),
+    findImagesByProduct(c.env.DB, id),
+  ]);
   if (!product) {
     return c.json({ error: { code: "NOT_FOUND", message: "Sản phẩm không tồn tại" } }, 404);
   }
-  const [withImages] = await attachImages(c.env.DB, [product]);
+  const withImages = { ...product, images };
   const [category, author_info] = await Promise.all([
     product.category_id ? findCategoryById(c.env.DB, product.category_id) : null,
     product.author

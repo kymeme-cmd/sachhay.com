@@ -66,15 +66,17 @@ cartRoutes.get("/", async (c) => {
 cartRoutes.post("/items", validate("json", CartItemAddSchema), async (c) => {
   const { product_id, quantity } = c.req.valid("json");
 
-  const product = await findProductById(c.env.DB, product_id);
+  // Lấy sản phẩm và giỏ hàng song song
+  const [product, cartId] = await Promise.all([
+    findProductById(c.env.DB, product_id),
+    getOrCreateCart(c.env.DB, c.get("user").userId),
+  ]);
   if (!product) {
     return c.json({ error: { code: "NOT_FOUND", message: "Sản phẩm không tồn tại" } }, 404);
   }
   if (!product.is_active) {
     return c.json({ error: { code: "INACTIVE", message: "Sản phẩm hiện không hoạt động" } }, 400);
   }
-
-  const cartId = await getOrCreateCart(c.env.DB, c.get("user").userId);
 
   const existing = await c.env.DB.prepare(
     `SELECT id, quantity FROM cart_items WHERE cart_id = ? AND product_id = ?`

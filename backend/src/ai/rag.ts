@@ -12,7 +12,7 @@
 import type { Context } from "hono";
 import type { Env, DBProduct } from "../types";
 import type { AppEnv, AuthUser } from "../middleware/auth";
-import { findProductsByIds, attachImages, listCategories, listProducts, findOrdersByUser, findOrderItems } from "../db/client";
+import { findProductsByIds, attachImages, listCategories, findOrdersByUser, findOrderItems } from "../db/client";
 import { normalizeSearch } from "../utils/slug";
 import { keywordSearch, clearKeywordCache } from "./keyword";
 
@@ -260,13 +260,28 @@ async function retrieve(env: Env, question: string, history: ChatTurn[], user: A
     const { matches } = await index.query(qVector, { topK: TOP_K, returnMetadata: "all" });
     return matches.filter((m) => m.score >= MIN_SCORE);
   };
-  const [relevant, keyword, { results: catalog }] = await Promise.all([
+  // Danh mục sách, thể loại, tác giả cũng đọc cùng lúc (trước đây đọc nối tiếp từng bước)
+  const [relevant, keyword, { results: catalog }, categories, { results: allAuthors }] = await Promise.all([
     vectorSearch(),
     isFollowUp ? Promise.resolve({ ids: [] as string[], keywordCount: 0 }) : keywordSearch(db, question),
     db.prepare(`SELECT id, name, author FROM products WHERE is_active = 1`).all<{ id: string; name: string; author: string | null }>(),
+    listCategories(db),
+    db.prepare(`SELECT ${AUTHOR_COLUMNS} FROM authors`).all<Author>(),
   ]);
   const vectorBookIds = relevant.filter((m) => m.metadata?.type === "book").map((m) => String(m.metadata!.ref));
   const policySlugs = new Set(relevant.filter((m) => m.metadata?.type === "policy").map((m) => String(m.metadata!.ref)));
+
+  // Chính sách + đơn hàng không phụ thuộc phần tìm sách → bắt đầu chạy ngay, chờ kết quả ở cuối
+  for (const [slug, re] of Object.entries(POLICY_KEYWORDS)) if (re.test(nq)) policySlugs.add(slug);
+  const asksReturns = RETURNS_INTENT.test(nq);
+  if (asksReturns) policySlugs.add("lien-he");
+  const policiesJob = loadPolicies(db, [...policySlugs]);
+  const asksOrder = ORDER_INTENT.test(nq);
+  const orderNeedsLogin = asksOrder && !user;
+  const ordersJob = asksOrder && user ? loadOrders(db, user.userId) : Promise.resolve(null);
+  // Tránh cảnh báo "unhandled rejection" nếu bước giữa lỗi trước khi kịp await
+  policiesJob.catch(() => {});
+  ordersJob.catch(() => {});
 
   // Khớp nguyên cụm tên sách / tác giả trong câu hỏi (không dấu)
   const exactIds = catalog
@@ -278,7 +293,6 @@ async function retrieve(env: Env, question: string, history: ChatTurn[], user: A
     .map((b) => b.id);
 
   // 3) Điều kiện lọc: khoảng giá + thể loại
-  const categories = await listCategories(db);
   const category = categories.find((c) => nq.includes(normalizeSearch(c.name)));
   const price = parsePriceRange(nq);
   const hasConstraint = !!category || price.min !== undefined || price.max !== undefined;
@@ -291,6 +305,23 @@ async function retrieve(env: Env, question: string, history: ChatTurn[], user: A
   if (exactIds.length > 0) ids = [...exactIds];
   else if (keyword.ids.length > 0 && keyword.keywordCount <= 2) ids = [...keyword.ids];
   else ids = [...new Set([...keyword.ids, ...vectorBookIds])];
+  // Lọc theo điều kiện và lấy sách "bán chạy" chạy song song.
+  // Chỉ lấy id (trước đây lấy cả 100 sách kèm ảnh và đếm tổng mà không dùng tới).
+  const popular = POPULAR_INTENT.test(nq);
+  const [filteredIds, top] = await Promise.all([
+    hasConstraint ? filterProductIds(db, category?.id, price.min, price.max) : Promise.resolve([] as string[]),
+    popular
+      ? db.prepare(
+          `SELECT p.id FROM products p
+           LEFT JOIN (SELECT oi.product_id, SUM(oi.quantity) AS sold FROM order_items oi JOIN orders o ON o.id = oi.order_id
+                      WHERE o.status NOT IN ('cancelled', 'refunded') GROUP BY oi.product_id) s ON s.product_id = p.id
+           LEFT JOIN (SELECT product_id, AVG(rating) AS avg, COUNT(*) AS n FROM reviews GROUP BY product_id) r ON r.product_id = p.id
+           WHERE p.is_active = 1 AND (s.sold > 0 OR r.n > 0)
+           ORDER BY COALESCE(r.avg, 0) DESC, COALESCE(s.sold, 0) DESC LIMIT 4`
+        ).all<{ id: string }>().then((r) => r.results)
+      : Promise.resolve([] as Array<{ id: string }>),
+  ]);
+
   let constraintText: string | null = null;
   if (hasConstraint) {
     const parts = [
@@ -299,30 +330,13 @@ async function retrieve(env: Env, question: string, history: ChatTurn[], user: A
       price.max !== undefined ? `giá không quá ${fmtPrice(price.max)}` : "",
     ].filter(Boolean);
     constraintText = parts.join(", ");
-    const { products: filtered } = await listProducts(db, {
-      category_id: category?.id,
-      min_price: price.min,
-      max_price: price.max,
-      is_active: 1,
-      per_page: 100,
-    });
-    const allowed = new Set(filtered.map((p) => p.id));
+    const allowed = new Set(filteredIds);
     // Ưu tiên sách liên quan theo nghĩa, sau đó bổ sung sách thỏa điều kiện
-    ids = [...ids.filter((id) => allowed.has(id)), ...filtered.map((p) => p.id)];
-    ids = [...new Set(ids)];
+    ids = [...new Set([...ids.filter((id) => allowed.has(id)), ...filteredIds])];
   }
 
   // Hỏi "bán chạy / hay nhất / nên đọc gì": thêm sách theo SỐ LIỆU THẬT (điểm sao, lượt bán)
-  const popular = POPULAR_INTENT.test(nq);
   if (popular) {
-    const { results: top } = await db.prepare(
-      `SELECT p.id FROM products p
-       LEFT JOIN (SELECT oi.product_id, SUM(oi.quantity) AS sold FROM order_items oi JOIN orders o ON o.id = oi.order_id
-                  WHERE o.status NOT IN ('cancelled', 'refunded') GROUP BY oi.product_id) s ON s.product_id = p.id
-       LEFT JOIN (SELECT product_id, AVG(rating) AS avg, COUNT(*) AS n FROM reviews GROUP BY product_id) r ON r.product_id = p.id
-       WHERE p.is_active = 1 AND (s.sold > 0 OR r.n > 0)
-       ORDER BY COALESCE(r.avg, 0) DESC, COALESCE(s.sold, 0) DESC LIMIT 4`
-    ).all<{ id: string }>();
     const topIds = top.map((t) => t.id).filter((id) => !hasConstraint || ids.includes(id));
     ids = [...new Set([...ids.slice(0, 3), ...topIds, ...ids.slice(3)])];
   }
@@ -343,7 +357,6 @@ async function retrieve(env: Env, question: string, history: ChatTurn[], user: A
     .map((p) => ({ ...p, category_name: p.category_id ? catName.get(p.category_id) ?? null : null, sold: soldMap.get(p.id) ?? 0 }));
 
   // 3b) Tác giả (bảng authors): nêu đúng tên, Vectorize khớp, hoặc hỏi "tác giả/là ai" về sách tìm được
-  const { results: allAuthors } = await db.prepare(`SELECT ${AUTHOR_COLUMNS} FROM authors`).all<Author>();
   const vectorAuthorIds = new Set(relevant.filter((m) => m.metadata?.type === "author").map((m) => String(m.metadata!.ref)));
   const asksAuthor = AUTHOR_INTENT.test(nq);
   const bookAuthors = new Set(asksAuthor ? books.slice(0, 3).map((b) => b.author).filter(Boolean) : []);
@@ -368,36 +381,41 @@ async function retrieve(env: Env, question: string, history: ChatTurn[], user: A
     }
   }
 
-  // 4) Chính sách: theo vector + từ khóa
-  for (const [slug, re] of Object.entries(POLICY_KEYWORDS)) if (re.test(nq)) policySlugs.add(slug);
-  const asksReturns = RETURNS_INTENT.test(nq);
-  if (asksReturns) policySlugs.add("lien-he");
-  let policies: Policy[] = [];
-  if (policySlugs.size > 0) {
-    const slugs = [...policySlugs];
-    const { results } = await db.prepare(
-      `SELECT slug, title, content FROM policies WHERE slug IN (${slugs.map(() => "?").join(", ")})`
-    ).bind(...slugs).all<Policy>();
-    policies = results;
-  }
-
-  // 5) Đơn hàng của chính người đang đăng nhập
-  let orders: string[] | null = null;
-  let orderNeedsLogin = false;
-  if (ORDER_INTENT.test(nq)) {
-    if (!user) {
-      orderNeedsLogin = true;
-    } else {
-      const list = (await findOrdersByUser(db, user.userId)).slice(0, 5);
-      orders = await Promise.all(list.map(async (o) => {
-        const items = (await findOrderItems(db, o.id)) as Array<{ name: string; quantity: number }>;
-        const date = new Date(o.created_at * 1000).toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
-        return `Đơn hàng #${o.id.replace(/^order_/, "").slice(0, 8).toUpperCase()} — đặt ngày ${date} — trạng thái: ${ORDER_STATUS_LABELS[o.status] ?? o.status} — tổng tiền: ${fmtPrice(o.total_amount)} — gồm: ${items.map((i) => `${i.name} ×${i.quantity}`).join(", ")}`;
-      }));
-    }
-  }
+  // 4) Chính sách và 5) đơn hàng: đã chạy song song từ đầu
+  const [policies, orders] = await Promise.all([policiesJob, ordersJob]);
 
   return { books, authors, popular, policies, orders, orderNeedsLogin, asksReturns, constraintText };
+}
+
+/** Id sách đang bán thỏa thể loại / khoảng giá (mới nhất trước, tối đa 100) */
+async function filterProductIds(db: D1Database, categoryId?: string, min?: number, max?: number): Promise<string[]> {
+  let where = "is_active = 1";
+  const params: unknown[] = [];
+  if (categoryId) { where += " AND category_id = ?"; params.push(categoryId); }
+  if (min !== undefined) { where += " AND price >= ?"; params.push(min); }
+  if (max !== undefined) { where += " AND price <= ?"; params.push(max); }
+  const { results } = await db.prepare(
+    `SELECT id FROM products WHERE ${where} ORDER BY created_at DESC, rowid DESC LIMIT 100`
+  ).bind(...params).all<{ id: string }>();
+  return results.map((r) => r.id);
+}
+
+async function loadPolicies(db: D1Database, slugs: string[]): Promise<Policy[]> {
+  if (slugs.length === 0) return [];
+  const { results } = await db.prepare(
+    `SELECT slug, title, content FROM policies WHERE slug IN (${slugs.map(() => "?").join(", ")})`
+  ).bind(...slugs).all<Policy>();
+  return results;
+}
+
+/** 5 đơn gần nhất của người đang đăng nhập, mô tả thành câu cho ngữ cảnh */
+async function loadOrders(db: D1Database, userId: string): Promise<string[]> {
+  const list = (await findOrdersByUser(db, userId)).slice(0, 5);
+  return Promise.all(list.map(async (o) => {
+    const items = (await findOrderItems(db, o.id)) as Array<{ name: string; quantity: number }>;
+    const date = new Date(o.created_at * 1000).toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+    return `Đơn hàng #${o.id.replace(/^order_/, "").slice(0, 8).toUpperCase()} — đặt ngày ${date} — trạng thái: ${ORDER_STATUS_LABELS[o.status] ?? o.status} — tổng tiền: ${fmtPrice(o.total_amount)} — gồm: ${items.map((i) => `${i.name} ×${i.quantity}`).join(", ")}`;
+  }));
 }
 
 // ---------- Ngữ cảnh + câu trả lời soạn sẵn ----------

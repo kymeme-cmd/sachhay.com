@@ -16,7 +16,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "moduleDetection": "force",
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }

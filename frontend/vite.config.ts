@@ -21,6 +21,7 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    sourcemap: true,
+    // Không xuất file .map lên production (tránh lộ mã nguồn, giảm dung lượng deploy)
+    sourcemap: false,
   },
 });

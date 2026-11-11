@@ -222,14 +222,6 @@ export async function listProducts(db: D1Database, filters: {
     params.push(filters.max_price);
   }
 
-  // Count total
-  const countParams = [...params];
-  const { results: countResults } = await db.prepare(
-    `SELECT COUNT(*) as total FROM ${DB_TABLES.PRODUCTS} WHERE 1=1 ${where}`
-  ).bind(...countParams).all();
-
-  const total = Number(countResults[0]?.total ?? 0);
-
   // Fetch page (whitelist cột sắp xếp để tránh SQL injection)
   const sortDir = filters.sortDir === "ASC" ? "ASC" : "DESC";
   let orderClause: string;
@@ -243,9 +235,15 @@ export async function listProducts(db: D1Database, filters: {
     orderClause = `${orderBy} ${sortDir}, rowid ${sortDir}`;
   }
 
-  const { results } = await db.prepare(
-    `SELECT ${PRODUCT_COLUMNS} FROM ${DB_TABLES.PRODUCTS} WHERE 1=1 ${where} ORDER BY ${orderClause} LIMIT ? OFFSET ?`
-  ).bind(...params, ...orderParams, perPage, offset).all();
+  // Đếm tổng + lấy trang trong 1 lần gọi D1 (batch) thay vì 2 lần nối tiếp
+  const [countRes, pageRes] = await db.batch([
+    db.prepare(`SELECT COUNT(*) as total FROM ${DB_TABLES.PRODUCTS} WHERE 1=1 ${where}`).bind(...params),
+    db.prepare(
+      `SELECT ${PRODUCT_COLUMNS} FROM ${DB_TABLES.PRODUCTS} WHERE 1=1 ${where} ORDER BY ${orderClause} LIMIT ? OFFSET ?`
+    ).bind(...params, ...orderParams, perPage, offset),
+  ]);
+  const total = Number((countRes.results[0] as { total?: number } | undefined)?.total ?? 0);
+  const results = pageRes.results;
 
   const products = await attachImages(db, results as unknown as DBProduct[]);
 
@@ -264,11 +262,19 @@ export async function listProducts(db: D1Database, filters: {
  * Điền cột search_text cho các sách chưa có (dữ liệu seed/migration cũ).
  * SQLite không bỏ dấu được nên phải tính ở Worker; sau lần đầu truy vấn này gần như không tốn gì.
  */
+// Sách tạo/sửa qua API luôn có search_text; chỉ dữ liệu seed mới thiếu.
+// Khi đã điền đủ thì Worker (isolate) này không kiểm tra lại nữa, đỡ 1 truy vấn mỗi lần tìm kiếm.
+let searchTextReady = false;
+
 async function ensureSearchText(db: D1Database): Promise<void> {
+  if (searchTextReady) return;
   const { results } = await db.prepare(
     `SELECT id, name, author, description FROM ${DB_TABLES.PRODUCTS} WHERE search_text IS NULL LIMIT 500`
   ).all<{ id: string; name: string; author: string | null; description: string | null }>();
-  if (results.length === 0) return;
+  if (results.length === 0) {
+    searchTextReady = true;
+    return;
+  }
   await db.batch(
     results.map((p) =>
       db.prepare(`UPDATE ${DB_TABLES.PRODUCTS} SET search_text = ? WHERE id = ?`).bind(buildSearchText(p), p.id)
@@ -429,35 +435,6 @@ export async function getOrCreateCart(db: D1Database, userId: string): Promise<{
   return { cartId: newCartId };
 }
 
-export async function addCartItem(db: D1Database, data: {
-  cart_id: string;
-  product_id: string;
-  quantity: number;
-}): Promise<{ success: boolean; message?: string }> {
-  const product = await findProductById(db, data.product_id);
-  if (!product) {
-    return { success: false, message: "Sản phẩm không tồn tại" };
-  }
-  if (!product.is_active) {
-    return { success: false, message: "Sản phẩm đang không hoạt động" };
-  }
-  if (product.stock < data.quantity) {
-    return { success: false, message: `Số lượng tồn kho không đủ. Còn ${product.stock}` };
-  }
-
-  try {
-    await db.prepare(
-      `INSERT INTO ${DB_TABLES.CART_ITEMS} (id, cart_id, product_id, quantity) VALUES (?, ?, ?, ?)`
-    ).bind(`item_${Date.now()}_${Math.random()}`, data.cart_id, data.product_id, data.quantity).run();
-    return { success: true };
-  } catch (e: any) {
-    await db.prepare(
-      `UPDATE ${DB_TABLES.CART_ITEMS} SET quantity = quantity + ? WHERE cart_id = ? AND product_id = ?`
-    ).bind(data.quantity, data.cart_id, data.product_id).run();
-    return { success: true, message: "Đã cập nhật số lượng trong giỏ" };
-  }
-}
-
 export async function updateCartItemQuantity(db: D1Database, data: {
   cart_id: string;
   product_id: string;
@@ -554,12 +531,12 @@ export async function createOrder(db: D1Database, data: {
 }): Promise<{ order: DBOrder }> {
   // D1 không hỗ trợ BEGIN/COMMIT; db.batch() chạy tất cả câu lệnh trong 1 transaction.
   // Lấy giá hiện tại của sản phẩm (route đã kiểm tra tồn tại / tồn kho trước đó).
-  const products = new Map<string, DBProduct>();
-  for (const item of data.items) {
-    const product = await findProductById(db, item.product_id);
-    if (!product) throw new BusinessError("NOT_FOUND", `Sản phẩm ${item.product_id} không tồn tại`, 404);
-    products.set(item.product_id, product);
-  }
+  // Lấy tất cả sản phẩm trong 1 truy vấn (thay vì 1 truy vấn cho mỗi sản phẩm)
+  const products = new Map(
+    (await findProductsByIds(db, [...new Set(data.items.map((i) => i.product_id))])).map((p) => [p.id, p])
+  );
+  const missing = data.items.find((i) => !products.has(i.product_id));
+  if (missing) throw new BusinessError("NOT_FOUND", `Sản phẩm ${missing.product_id} không tồn tại`, 404);
 
   const orderId = `order_${crypto.randomUUID()}`;
   const statements: D1PreparedStatement[] = [
