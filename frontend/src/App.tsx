@@ -30,7 +30,12 @@ function useTrackPageView() {
   const { pathname } = useLocation();
   useEffect(() => {
     try {
-      const payload = JSON.stringify({ path: pathname, referrer: document.referrer, session_id: getSessionId() });
+      const payload = JSON.stringify({
+        path: pathname,
+        referrer: document.referrer,
+        session_id: getSessionId(),
+        touch: navigator.maxTouchPoints || 0, // phân biệt iPad với máy Mac (cùng User-Agent)
+      });
       // text/plain để không phát sinh preflight CORS; sendBeacon không làm chậm trang
       navigator.sendBeacon?.(`${API_BASE}/track`, new Blob([payload], { type: "text/plain" }));
     } catch {

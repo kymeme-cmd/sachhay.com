@@ -10,9 +10,25 @@ export const trackRoutes = new Hono<AppEnv>();
 
 const BOT_UA = /bot|crawl|spider|slurp|curl|wget|python|httpclient|headless|lighthouse|preview/i;
 
-function detectDevice(ua: string): string {
-  if (/ipad|tablet|playbook|silk/i.test(ua)) return "tablet";
-  if (/mobi|android|iphone|ipod/i.test(ua)) return "mobile";
+/**
+ * Thiết bị / hệ điều hành: android, iphone, ipad, windows, macos, linux, chromeos, other.
+ * iPad đời mới gửi User-Agent giống máy Mac → frontend gửi kèm số điểm chạm (touch) để phân biệt.
+ */
+export function detectDevice(ua: string, touchPoints = 0): string {
+  if (/iphone|ipod/i.test(ua)) return "iphone";
+  if (/ipad/i.test(ua)) return "ipad";
+  if (/android/i.test(ua)) return "android";
+  if (/windows/i.test(ua)) return "windows";
+  if (/cros/i.test(ua)) return "chromeos";
+  if (/macintosh|mac os x/i.test(ua)) return touchPoints > 1 ? "ipad" : "macos";
+  if (/linux|x11/i.test(ua)) return "linux";
+  return "other";
+}
+
+/** Loại thiết bị: mobile / tablet / desktop (lưu thêm trong meta) */
+function deviceType(ua: string, device: string): string {
+  if (device === "ipad" || /tablet|playbook|silk/i.test(ua) || (device === "android" && !/mobile/i.test(ua))) return "tablet";
+  if (device === "iphone" || device === "android" || /mobi/i.test(ua)) return "mobile";
   return "desktop";
 }
 
@@ -33,14 +49,16 @@ trackRoutes.post("/", async (c) => {
 
   const ua = c.req.header("User-Agent") ?? "";
   const cf = c.req.raw.cf as { country?: string } | undefined;
+  const device = detectDevice(ua, Number(body.touch) || 0);
   const record = {
     id: c.env.TRACK_GROUP ?? "nhóm 13", // tên nhóm: nhận biết dữ liệu của nhóm trên stream dùng chung
     country: cf?.country ?? "XX", // Cloudflare tự xác định quốc gia theo IP
-    device: detectDevice(ua),
+    device, // android / iphone / ipad / windows / macos / linux / chromeos / other
     time: Date.now(), // giờ server (ms), không tin giờ máy khách
     ip: c.req.header("CF-Connecting-IP") ?? "", // IP thật của người truy cập (Cloudflare cung cấp)
     meta: {
       event_id: crypto.randomUUID(), // mã riêng của từng lượt truy cập
+      device_type: deviceType(ua, device), // mobile / tablet / desktop
       path: clip(body.path, 200),
       referrer: clip(body.referrer, 300),
       session_id: clip(body.session_id, 64),
