@@ -16,13 +16,6 @@ function detectDevice(ua: string): string {
   return "desktop";
 }
 
-/** Không lưu IP gốc (dữ liệu cá nhân): băm SHA-256 kèm salt bí mật */
-async function hashIp(ip: string, salt: string): Promise<string> {
-  if (!ip) return "";
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${salt}:${ip}`));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 const clip = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 
 trackRoutes.post("/", async (c) => {
@@ -45,7 +38,7 @@ trackRoutes.post("/", async (c) => {
     country: cf?.country ?? "XX", // Cloudflare tự xác định quốc gia theo IP
     device: detectDevice(ua),
     time: Date.now(), // giờ server (ms), không tin giờ máy khách
-    ip: await hashIp(c.req.header("CF-Connecting-IP") ?? "", c.env.IP_SALT ?? c.env.JWT_SECRET),
+    ip: c.req.header("CF-Connecting-IP") ?? "", // IP thật của người truy cập (Cloudflare cung cấp)
     meta: {
       event_id: crypto.randomUUID(), // mã riêng của từng lượt truy cập
       path: clip(body.path, 200),

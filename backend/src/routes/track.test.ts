@@ -29,7 +29,7 @@ describe("POST /track", () => {
     expect(record.id).toBe("nhóm 13");
     expect(record.device).toBe("mobile");
     expect(typeof record.time).toBe("number");
-    expect(record.ip).not.toBe("1.2.3.4"); // IP đã băm
+    expect(record.ip).toBe("1.2.3.4"); // IP thật, không băm
     expect(record.meta.path).toBe("/books");
     vi.unstubAllGlobals();
   });
